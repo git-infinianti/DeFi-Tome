@@ -46,12 +46,19 @@ def register(request):
             return render(request, 'register/index.html')
     
     return render(request, 'register/index.html')
+
+
 def login(request):
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
         
-        # Check if username exists
+        # Validate required fields
+        if not username or not password:
+            messages.error(request, 'Both username and password are required.')
+            return render(request, 'login/index.html')
+        
+        # Check if username exists (per requirements: redirect to register if user doesn't exist)
         if not User.objects.filter(username=username).exists():
             messages.error(request, 'User does not exist. Please register first.')
             return redirect('register')
@@ -70,5 +77,7 @@ def login(request):
             return render(request, 'login/index.html')
     
     return render(request, 'login/index.html')
+
+
 def home(request):
     return render(request, 'home/index.html')

@@ -143,7 +143,16 @@ class LoginTestCase(TestCase):
             'password': 'testpass123'
         })
         
-        # Should redirect to register for empty/non-existent username
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, self.register_url)
+        # Should stay on login page with error message
+        self.assertEqual(response.status_code, 200)
+    
+    def test_login_empty_password(self):
+        """Test that login handles empty password"""
+        response = self.client.post(self.login_url, {
+            'username': 'testuser',
+            'password': ''
+        })
+        
+        # Should stay on login page with error message
+        self.assertEqual(response.status_code, 200)
 
