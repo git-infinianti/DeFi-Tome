@@ -4,6 +4,7 @@ from django.contrib.auth import login as auth_login, authenticate, logout as aut
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import IntegrityError
+from django.views.decorators.http import require_http_methods
 
 # Create your views here.
 def register(request):
@@ -93,10 +94,11 @@ def home(request):
     return render(request, 'home/index.html')
 
 
-@login_required
+@require_http_methods(["GET", "POST"])
 def logout(request):
-    auth_logout(request)
-    messages.success(request, 'You have been successfully logged out.')
+    if request.user.is_authenticated:
+        auth_logout(request)
+        messages.success(request, 'You have been successfully logged out.')
     return redirect('login')
 
 
