@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi Tome - Settings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        nav a {
+            color: #cbd5e1;
+            text-decoration: none;
+            margin-left: 2rem;
+            transition: color 0.3s;
+        }
+        
+        nav a:hover {
+            color: #3b82f6;
+        }
+        
+        .settings-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .settings-section {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .settings-section h2 {
+            color: #60a5fa;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+        
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+        
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+        
+        .settings-item label {
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+        
+        .settings-item .description {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            margin-top: 0.25rem;
+        }
+        
+        button, .btn {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        button:hover, .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        
+        .user-info {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .user-info p {
+            margin: 0.5rem 0;
+            color: #cbd5e1;
+        }
+        
+        .user-info strong {
+            color: #60a5fa;
+        }
+        
+        .logout-form {
+            margin: 0;
+            padding: 0;
+            display: inline;
+        }
+        
+        .logout-form button {
+            background: none;
+            border: none;
+            color: #cbd5e1;
+            text-decoration: none;
+            margin-left: 2rem;
+            cursor: pointer;
+            transition: color 0.3s;
+            font-family: inherit;
+            font-size: inherit;
+        }
+        
+        .logout-form button:hover {
+            color: #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">DeFi Tome</div>
+            <nav>
+                <a href="{% url 'home' %}">Home</a>
+                <form method="post" action="{% url 'logout' %}" class="logout-form">
+                    {% csrf_token %}
+                    <button type="submit">Logout</button>
+                </form>
+            </nav>
+        </header>
+        
+        <div class="settings-container">
+            <h1>Settings</h1>
+            
+            <div class="settings-section">
+                <h2>Account Information</h2>
+                <div class="user-info">
+                    <p><strong>Username:</strong> {{ user.username }}</p>
+                    <p><strong>Email:</strong> {{ user.email }}</p>
+                    <p><strong>Account Created:</strong> {{ user.date_joined|date:"F d, Y" }}</p>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h2>Preferences</h2>
+                <div class="settings-item">
+                    <div>
+                        <label>Email Notifications</label>
+                        <div class="description">Receive updates about your portfolio</div>
+                    </div>
+                    <button>Configure</button>
+                </div>
+                <div class="settings-item">
+                    <div>
+                        <label>Theme</label>
+                        <div class="description">Customize your interface appearance</div>
+                    </div>
+                    <button>Change</button>
+                </div>
+                <div class="settings-item">
+                    <div>
+                        <label>Language</label>
+                        <div class="description">Select your preferred language</div>
+                    </div>
+                    <button>Select</button>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h2>Security</h2>
+                <div class="settings-item">
+                    <div>
+                        <label>Change Password</label>
+                        <div class="description">Update your account password</div>
+                    </div>
+                    <button>Update</button>
+                </div>
+                <div class="settings-item">
+                    <div>
+                        <label>Two-Factor Authentication</label>
+                        <div class="description">Add an extra layer of security</div>
+                    </div>
+                    <button>Enable</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

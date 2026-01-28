@@ -1,9 +1,10 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
-from django.contrib.auth import login as auth_login, authenticate
+from django.contrib.auth import login as auth_login, authenticate, logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import IntegrityError
+from django.views.decorators.http import require_http_methods
 
 # Create your views here.
 def register(request):
@@ -91,3 +92,16 @@ def login(request):
 @login_required
 def home(request):
     return render(request, 'home/index.html')
+
+
+@require_http_methods(["GET", "POST"])
+def logout(request):
+    if request.user.is_authenticated:
+        auth_logout(request)
+        messages.success(request, 'You have been successfully logged out.')
+    return redirect('login')
+
+
+@login_required
+def settings(request):
+    return render(request, 'settings/index.html')
