@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
-from django.contrib.auth import login as auth_login, authenticate
+from django.contrib.auth import login as auth_login, authenticate, logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import IntegrityError
@@ -91,3 +91,15 @@ def login(request):
 @login_required
 def home(request):
     return render(request, 'home/index.html')
+
+
+@login_required
+def logout(request):
+    auth_logout(request)
+    messages.success(request, 'You have been successfully logged out.')
+    return redirect('login')
+
+
+@login_required
+def settings(request):
+    return render(request, 'settings/index.html')
