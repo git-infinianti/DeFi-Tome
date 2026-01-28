@@ -32,7 +32,12 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'DeFi',
+    'Explorer',
+    'Marketplace',
+    'Settings',
     'User',
+    'Wallet',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
