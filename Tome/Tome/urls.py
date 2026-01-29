@@ -24,4 +24,5 @@ urlpatterns = [
     path('settings/', include('Settings.urls')),
     path('marketplace/', include('Marketplace.urls')),
     path('explorer/', include('Explorer.urls')),
+    path('api/', include('API.urls')),
 ]
