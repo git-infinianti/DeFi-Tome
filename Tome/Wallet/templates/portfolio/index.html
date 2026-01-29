@@ -26,6 +26,7 @@
             --warning-bg: rgba(245, 158, 11, 0.1);
             --warning-border: rgba(245, 158, 11, 0.3);
             --warning-text: #fcd34d;
+            --success-text: #4ade80;
         }
         
         .theme-light {
@@ -49,6 +50,7 @@
             --warning-bg: rgba(245, 158, 11, 0.1);
             --warning-border: rgba(245, 158, 11, 0.3);
             --warning-text: #d97706;
+            --success-text: #16a34a;
         }
         
         * {
@@ -319,6 +321,10 @@
             margin-top: 0.5rem;
         }
         
+        .status-active {
+            color: var(--success-text) !important;
+        }
+        
         @media (max-width: 768px) {
             .wallet-field {
                 flex-direction: column;
@@ -375,7 +381,7 @@
                 </div>
                 <div class="wallet-field">
                     <label>Status:</label>
-                    <div class="value" style="color: #4ade80;">Active</div>
+                    <div class="value status-active">Active</div>
                 </div>
             </div>
         </div>
