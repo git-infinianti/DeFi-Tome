@@ -92,6 +92,28 @@
             color: #94a3b8;
         }
         
+        .page-actions {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .btn-create {
+            display: inline-block;
+            padding: 0.875rem 2rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-create:hover {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+        }
+        
         .listings-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -211,6 +233,10 @@
             <h1>Marketplace</h1>
             <p>Browse available listings and discover opportunities</p>
         </section>
+        
+        <div class="page-actions">
+            <a href="{% url 'create_listing' %}" class="btn-create">+ Create New Listing</a>
+        </div>
         
         {% if listings %}
             <div class="listings-grid">
