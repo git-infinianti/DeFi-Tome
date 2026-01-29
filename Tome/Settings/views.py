@@ -91,8 +91,8 @@ def change_theme(request):
     """Change user's theme preference"""
     theme = request.POST.get('theme', 'default')
     
-    # Validate theme choice
-    valid_themes = ['default', 'light', 'dark']
+    # Validate theme choice against model choices
+    valid_themes = [choice[0] for choice in UserProfile.THEME_CHOICES]
     if theme not in valid_themes:
         messages.error(request, 'Invalid theme selection.')
         return redirect('settings')

@@ -14,5 +14,8 @@ class UserProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    class Meta:
+        verbose_name_plural = "User Profiles"
+    
     def __str__(self):
         return f"UserProfile(user={self.user.username}, theme={self.theme})"
