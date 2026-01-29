@@ -25,4 +25,5 @@ urlpatterns = [
     path('marketplace/', include('Marketplace.urls')),
     path('explorer/', include('Explorer.urls')),
     path('api/', include('API.urls')),
+    path('defi/', include('DeFi.urls')),
 ]

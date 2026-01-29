@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transactions - DeFi Tome Testnet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .transactions-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .transaction-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .transaction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .transaction-type {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .transaction-date {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .transaction-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .detail-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .detail-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .detail-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .tx-hash {
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #667eea;
+            word-break: break-all;
+        }
+        
+        .no-transactions {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .no-transactions h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .messages {
+            margin-bottom: 20px;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .back-link:hover {
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="header">
+            <h1>📊 Transaction History</h1>
+            <p>View your swap transactions on the testnet</p>
+        </div>
+        
+        <div class="transactions-card">
+            {% if transactions %}
+                {% for tx in transactions %}
+                <div class="transaction-item">
+                    <div class="transaction-header">
+                        <div class="transaction-type">
+                            🔄 Swap: {{ tx.from_token }} → {{ tx.to_token }}
+                        </div>
+                        <div class="transaction-date">
+                            {{ tx.created_at|date:"Y-m-d H:i:s" }}
+                        </div>
+                    </div>
+                    
+                    <div class="transaction-details">
+                        <div class="detail-item">
+                            <div class="detail-label">From Amount</div>
+                            <div class="detail-value">{{ tx.from_amount }} {{ tx.from_token }}</div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <div class="detail-label">To Amount</div>
+                            <div class="detail-value">{{ tx.to_amount }} {{ tx.to_token }}</div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <div class="detail-label">Fee</div>
+                            <div class="detail-value">{{ tx.fee_amount }} {{ tx.from_token }}</div>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <div class="detail-label">Pool</div>
+                            <div class="detail-value">{{ tx.pool.token_a_symbol }}/{{ tx.pool.token_b_symbol }}</div>
+                        </div>
+                    </div>
+                    
+                    {% if tx.tx_hash %}
+                    <div style="margin-top: 15px;">
+                        <div class="detail-label">Transaction Hash</div>
+                        <div class="tx-hash">{{ tx.tx_hash }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-transactions">
+                    <h2>No Transactions Yet</h2>
+                    <p>Your swap transactions will appear here.</p>
+                    <p>Start trading to see your transaction history!</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <a href="{% url 'testnet_home' %}" class="back-link">← Back to Testnet Home</a>
+    </div>
+</body>
+</html>
