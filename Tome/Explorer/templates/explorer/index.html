@@ -299,17 +299,17 @@
         <!-- Pagination Controls -->
         <div class="pagination-controls">
             {% if has_prev %}
-                <a href="?page={{ page|add:'-1' }}" class="pagination-arrow" title="Previous Page">↑</a>
+                <a href="?page={{ page|add:'-1' }}" class="pagination-arrow" title="Previous Page (Newer Blocks)" aria-label="Go to previous page with newer blocks">↑</a>
             {% else %}
-                <span class="pagination-arrow disabled" title="No Previous Page">↑</span>
+                <span class="pagination-arrow disabled" role="button" aria-disabled="true" aria-label="No previous page available">↑</span>
             {% endif %}
             
             <span class="pagination-info">Page {{ page }}</span>
             
             {% if has_next %}
-                <a href="?page={{ page|add:'1' }}" class="pagination-arrow" title="Next Page">↓</a>
+                <a href="?page={{ page|add:'1' }}" class="pagination-arrow" title="Next Page (Older Blocks)" aria-label="Go to next page with older blocks">↓</a>
             {% else %}
-                <span class="pagination-arrow disabled" title="No More Blocks">↓</span>
+                <span class="pagination-arrow disabled" role="button" aria-disabled="true" aria-label="No more blocks available">↓</span>
             {% endif %}
         </div>
         {% else %}

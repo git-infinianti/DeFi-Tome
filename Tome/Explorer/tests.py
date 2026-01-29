@@ -43,3 +43,11 @@ class ExplorerViewTests(TestCase):
         
         response = self.client.get(reverse('explorer') + '?page=-1')
         self.assertEqual(response.context['page'], 1)
+    
+    def test_explorer_pagination_boundary_conditions(self):
+        """Test that pagination defaults to page 1 and context variables are set"""
+        response = self.client.get(reverse('explorer'))
+        # When RPC fails or no blocks, page should still be 1
+        self.assertEqual(response.context['page'], 1)
+        # has_prev should be False on page 1
+        self.assertFalse(response.context['has_prev'])

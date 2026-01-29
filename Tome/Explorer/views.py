@@ -19,6 +19,11 @@ def explorer(request):
         # Get the current block count (height)
         block_count = RPC.execute_command_sync('getblockcount')
         
+        # Calculate maximum valid page number
+        max_page = (block_count // blocks_per_page) + 1
+        if page > max_page:
+            page = max_page
+        
         # Calculate starting block for this page
         # Page 1 shows blocks: block_count, block_count-1, block_count-2, block_count-3
         # Page 2 shows blocks: block_count-4, block_count-5, block_count-6, block_count-7
