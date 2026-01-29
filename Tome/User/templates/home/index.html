@@ -132,6 +132,11 @@
             transform: translateY(-4px);
         }
         
+        .feature-card-link {
+            text-decoration: none;
+            color: inherit;
+        }
+        
         .feature-card h3 {
             margin-bottom: 0.5rem;
             color: var(--accent-light);
@@ -226,25 +231,25 @@
         
         <div class="main-content">
             <section class="features-section">
-                <a href="{% url 'testnet_home' %}" style="text-decoration: none; color: inherit;">
+                <a href="{% url 'testnet_home' %}" class="feature-card-link">
                     <div class="feature-card">
                         <h3>🚀 DeFi Testnet</h3>
                         <p>Swap tokens and manage liquidity pools</p>
                     </div>
                 </a>
-                <a href="{% url 'explorer' %}" style="text-decoration: none; color: inherit;">
+                <a href="{% url 'explorer' %}" class="feature-card-link">
                     <div class="feature-card">
                         <h3>📊 Explorer</h3>
                         <p>Track blockchain data and transactions</p>
                     </div>
                 </a>
-                <a href="{% url 'marketplace' %}" style="text-decoration: none; color: inherit;">
+                <a href="{% url 'marketplace' %}" class="feature-card-link">
                     <div class="feature-card">
                         <h3>🔍 Marketplace</h3>
                         <p>Trade digital assets and NFTs</p>
                     </div>
                 </a>
-                <a href="{% url 'api_docs' %}" style="text-decoration: none; color: inherit;">
+                <a href="{% url 'api_docs' %}" class="feature-card-link">
                     <div class="feature-card">
                         <h3>⚡ API</h3>
                         <p>Build with our developer tools</p>

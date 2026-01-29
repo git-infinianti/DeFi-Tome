@@ -32,7 +32,7 @@
             --text-primary: #0f172a;
             --text-secondary: #334155;
             --text-muted: #64748b;
-            --border-color: rgba(148, 163, 184, 0.3);
+            --border-color: rgba(15, 23, 42, 0.2);
             --card-bg: rgba(255, 255, 255, 0.9);
             --card-bg-hover: rgba(59, 130, 246, 0.05);
             --accent-primary: #3b82f6;
@@ -117,6 +117,11 @@
             background: rgba(239, 68, 68, 0.2);
             color: #fca5a5;
             border-color: rgba(239, 68, 68, 0.3);
+        }
+        
+        .network-id {
+            margin-top: 0.75rem;
+            color: var(--text-muted);
         }
         
         .nav-links {
@@ -287,7 +292,7 @@
             <span class="status {% if not testnet_config.is_active %}inactive{% endif %}">
                 {% if testnet_config.is_active %}✓ Active{% else %}✗ Inactive{% endif %}
             </span>
-            <p style="margin-top: 0.75rem; color: var(--text-muted);">Network ID: {{ testnet_config.network_id }}</p>
+            <p class="network-id">Network ID: {{ testnet_config.network_id }}</p>
             {% endif %}
         </div>
         

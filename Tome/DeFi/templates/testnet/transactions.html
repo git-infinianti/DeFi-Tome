@@ -162,6 +162,10 @@
             word-break: break-all;
         }
         
+        .tx-hash-container {
+            margin-top: 1rem;
+        }
+        
         .no-transactions {
             text-align: center;
             padding: 4rem 2rem;
@@ -293,7 +297,7 @@
                     </div>
                     
                     {% if tx.tx_hash %}
-                    <div style="margin-top: 1rem;">
+                    <div class="tx-hash-container">
                         <div class="detail-label">Transaction Hash</div>
                         <div class="tx-hash">{{ tx.tx_hash }}</div>
                     </div>
