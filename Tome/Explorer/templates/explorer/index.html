@@ -185,6 +185,49 @@
             border-radius: 12px;
         }
         
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 2rem;
+            margin-top: 2rem;
+            padding: 1.5rem;
+        }
+        
+        .pagination-arrow {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            background: var(--card-bg);
+            border: 2px solid var(--accent-primary);
+            border-radius: 50%;
+            color: var(--accent-primary);
+            text-decoration: none;
+            font-size: 1.5rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .pagination-arrow:hover:not(.disabled) {
+            background: var(--accent-primary);
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .pagination-arrow.disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: var(--border-color);
+            color: var(--text-muted);
+        }
+        
+        .pagination-info {
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+        
         @media (max-width: 768px) {
             .block-header {
                 flex-direction: column;
@@ -218,7 +261,7 @@
         
         <div class="page-header">
             <h1>Blockchain Explorer</h1>
-            <p>View the 10 most recent blocks on the blockchain</p>
+            <p>View recent blocks on the blockchain (Page {{ page }})</p>
         </div>
         
         {% if error_message %}
@@ -251,6 +294,23 @@
                 </div>
             </div>
             {% endfor %}
+        </div>
+        
+        <!-- Pagination Controls -->
+        <div class="pagination-controls">
+            {% if has_prev %}
+                <a href="?page={{ page|add:'-1' }}" class="pagination-arrow" title="Previous Page">↑</a>
+            {% else %}
+                <span class="pagination-arrow disabled" title="No Previous Page">↑</span>
+            {% endif %}
+            
+            <span class="pagination-info">Page {{ page }}</span>
+            
+            {% if has_next %}
+                <a href="?page={{ page|add:'1' }}" class="pagination-arrow" title="Next Page">↓</a>
+            {% else %}
+                <span class="pagination-arrow disabled" title="No More Blocks">↓</span>
+            {% endif %}
         </div>
         {% else %}
         <div class="no-blocks">
