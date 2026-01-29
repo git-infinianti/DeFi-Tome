@@ -105,7 +105,10 @@ def login(request):
 
 @login_required
 def home(request):
-    return render(request, 'home/index.html')
+    from Marketplace.models import MarketplaceListing
+    # Get the 3 most recent marketplace listings
+    recent_listings = MarketplaceListing.objects.all().select_related('item', 'seller').order_by('-listing_date')[:3]
+    return render(request, 'home/index.html', {'listings': recent_listings})
 
 
 @require_http_methods(["GET", "POST"])
