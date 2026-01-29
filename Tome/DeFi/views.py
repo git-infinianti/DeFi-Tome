@@ -1,7 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.db import transaction
+from django.db.models import F
 from decimal import Decimal
+import uuid
 from .models import TestnetConfig, LiquidityPool, LiquidityPosition, SwapTransaction
 
 # Create your views here.
@@ -39,56 +42,64 @@ def swap(request):
         try:
             amount = Decimal(amount)
             if amount <= 0:
-                raise ValueError
+                messages.error(request, 'Amount must be greater than zero.')
+                return redirect('swap')
         except (ValueError, Exception):
             messages.error(request, 'Invalid amount specified.')
             return redirect('swap')
         
         try:
-            pool = LiquidityPool.objects.get(id=pool_id)
-            
-            # Calculate swap amount using constant product formula (x * y = k)
-            if from_token == pool.token_a_symbol:
-                reserve_in = pool.token_a_reserve
-                reserve_out = pool.token_b_reserve
-            elif from_token == pool.token_b_symbol:
-                reserve_in = pool.token_b_reserve
-                reserve_out = pool.token_a_reserve
-            else:
-                messages.error(request, 'Invalid token for this pool.')
-                return redirect('swap')
-            
-            # Calculate output amount with fee
-            fee = amount * pool.fee_percentage / Decimal('100')
-            amount_with_fee = amount - fee
-            
-            # Constant product formula: (x + Δx) * (y - Δy) = x * y
-            # Δy = (y * Δx) / (x + Δx)
-            output_amount = (reserve_out * amount_with_fee) / (reserve_in + amount_with_fee)
-            
-            # Update pool reserves
-            if from_token == pool.token_a_symbol:
-                pool.token_a_reserve += amount
-                pool.token_b_reserve -= output_amount
-            else:
-                pool.token_b_reserve += amount
-                pool.token_a_reserve -= output_amount
-            
-            pool.save()
-            
-            # Record transaction
-            SwapTransaction.objects.create(
-                user=request.user,
-                pool=pool,
-                from_token=from_token,
-                to_token=to_token,
-                from_amount=amount,
-                to_amount=output_amount,
-                fee_amount=fee,
-                tx_hash=f'testnet-{pool.id}-{SwapTransaction.objects.count() + 1}'
-            )
-            
-            messages.success(request, f'Successfully swapped {amount} {from_token} for {output_amount:.8f} {to_token}!')
+            # Use select_for_update to lock the pool row during transaction
+            with transaction.atomic():
+                pool = LiquidityPool.objects.select_for_update().get(id=pool_id)
+                
+                # Calculate swap amount using constant product formula (x * y = k)
+                if from_token == pool.token_a_symbol:
+                    reserve_in = pool.token_a_reserve
+                    reserve_out = pool.token_b_reserve
+                elif from_token == pool.token_b_symbol:
+                    reserve_in = pool.token_b_reserve
+                    reserve_out = pool.token_a_reserve
+                else:
+                    messages.error(request, 'Invalid token for this pool.')
+                    return redirect('swap')
+                
+                # Calculate output amount with fee
+                fee = amount * pool.fee_percentage / Decimal('100')
+                amount_with_fee = amount - fee
+                
+                # Constant product formula: (x + Δx) * (y - Δy) = x * y
+                # Δy = (y * Δx) / (x + Δx)
+                output_amount = (reserve_out * amount_with_fee) / (reserve_in + amount_with_fee)
+                
+                # Validate sufficient reserves
+                if output_amount >= reserve_out:
+                    messages.error(request, 'Insufficient liquidity in pool for this swap.')
+                    return redirect('swap')
+                
+                # Update pool reserves
+                if from_token == pool.token_a_symbol:
+                    pool.token_a_reserve += amount
+                    pool.token_b_reserve -= output_amount
+                else:
+                    pool.token_b_reserve += amount
+                    pool.token_a_reserve -= output_amount
+                
+                pool.save()
+                
+                # Record transaction with unique hash
+                SwapTransaction.objects.create(
+                    user=request.user,
+                    pool=pool,
+                    from_token=from_token,
+                    to_token=to_token,
+                    from_amount=amount,
+                    to_amount=output_amount,
+                    fee_amount=fee,
+                    tx_hash=f'testnet-{uuid.uuid4()}'
+                )
+                
+                messages.success(request, f'Successfully swapped {amount} {from_token} for {output_amount:.8f} {to_token}!')
             
         except LiquidityPool.DoesNotExist:
             messages.error(request, 'Pool not found.')
@@ -126,39 +137,47 @@ def liquidity(request):
                 token_b_amount = Decimal(token_b_amount)
                 
                 if token_a_amount <= 0 or token_b_amount <= 0:
-                    raise ValueError
+                    messages.error(request, 'Amounts must be greater than zero.')
+                    return redirect('liquidity')
                 
-                pool = LiquidityPool.objects.get(id=pool_id)
-                
-                # Calculate liquidity tokens to mint
-                if pool.total_liquidity_tokens == 0:
-                    # First liquidity provider
-                    liquidity_tokens = (token_a_amount * token_b_amount) ** Decimal('0.5')
-                else:
-                    # Proportional to existing liquidity
-                    liquidity_tokens = min(
-                        (token_a_amount * pool.total_liquidity_tokens) / pool.token_a_reserve,
-                        (token_b_amount * pool.total_liquidity_tokens) / pool.token_b_reserve
+                # Use atomic transaction and row locking
+                with transaction.atomic():
+                    pool = LiquidityPool.objects.select_for_update().get(id=pool_id)
+                    
+                    # Calculate liquidity tokens to mint
+                    if pool.total_liquidity_tokens == 0:
+                        # First liquidity provider - use geometric mean
+                        liquidity_tokens = (token_a_amount * token_b_amount).sqrt()
+                    else:
+                        # Validate reserves are not zero
+                        if pool.token_a_reserve <= 0 or pool.token_b_reserve <= 0:
+                            messages.error(request, 'Pool has invalid reserves.')
+                            return redirect('liquidity')
+                        
+                        # Proportional to existing liquidity
+                        liquidity_tokens = min(
+                            (token_a_amount * pool.total_liquidity_tokens) / pool.token_a_reserve,
+                            (token_b_amount * pool.total_liquidity_tokens) / pool.token_b_reserve
+                        )
+                    
+                    # Update pool reserves
+                    pool.token_a_reserve += token_a_amount
+                    pool.token_b_reserve += token_b_amount
+                    pool.total_liquidity_tokens += liquidity_tokens
+                    pool.save()
+                    
+                    # Update or create user position
+                    position, created = LiquidityPosition.objects.get_or_create(
+                        user=request.user,
+                        pool=pool,
+                        defaults={'liquidity_tokens': liquidity_tokens}
                     )
-                
-                # Update pool reserves
-                pool.token_a_reserve += token_a_amount
-                pool.token_b_reserve += token_b_amount
-                pool.total_liquidity_tokens += liquidity_tokens
-                pool.save()
-                
-                # Update or create user position
-                position, created = LiquidityPosition.objects.get_or_create(
-                    user=request.user,
-                    pool=pool,
-                    defaults={'liquidity_tokens': liquidity_tokens}
-                )
-                
-                if not created:
-                    position.liquidity_tokens += liquidity_tokens
-                    position.save()
-                
-                messages.success(request, f'Successfully added liquidity! Received {liquidity_tokens:.8f} liquidity tokens.')
+                    
+                    if not created:
+                        position.liquidity_tokens += liquidity_tokens
+                        position.save()
+                    
+                    messages.success(request, f'Successfully added liquidity! Received {liquidity_tokens:.8f} liquidity tokens.')
                 
             except LiquidityPool.DoesNotExist:
                 messages.error(request, 'Pool not found.')
@@ -176,34 +195,42 @@ def liquidity(request):
                 liquidity_tokens = Decimal(liquidity_tokens)
                 
                 if liquidity_tokens <= 0:
-                    raise ValueError
-                
-                pool = LiquidityPool.objects.get(id=pool_id)
-                position = LiquidityPosition.objects.get(user=request.user, pool=pool)
-                
-                if liquidity_tokens > position.liquidity_tokens:
-                    messages.error(request, 'Insufficient liquidity tokens.')
+                    messages.error(request, 'Amount must be greater than zero.')
                     return redirect('liquidity')
                 
-                # Calculate tokens to return
-                share = liquidity_tokens / pool.total_liquidity_tokens
-                token_a_amount = pool.token_a_reserve * share
-                token_b_amount = pool.token_b_reserve * share
-                
-                # Update pool reserves
-                pool.token_a_reserve -= token_a_amount
-                pool.token_b_reserve -= token_b_amount
-                pool.total_liquidity_tokens -= liquidity_tokens
-                pool.save()
-                
-                # Update user position
-                position.liquidity_tokens -= liquidity_tokens
-                if position.liquidity_tokens == 0:
-                    position.delete()
-                else:
-                    position.save()
-                
-                messages.success(request, f'Successfully removed liquidity! Received {token_a_amount:.8f} {pool.token_a_symbol} and {token_b_amount:.8f} {pool.token_b_symbol}.')
+                # Use atomic transaction and row locking
+                with transaction.atomic():
+                    pool = LiquidityPool.objects.select_for_update().get(id=pool_id)
+                    position = LiquidityPosition.objects.select_for_update().get(user=request.user, pool=pool)
+                    
+                    if liquidity_tokens > position.liquidity_tokens:
+                        messages.error(request, 'Insufficient liquidity tokens.')
+                        return redirect('liquidity')
+                    
+                    # Validate pool has liquidity
+                    if pool.total_liquidity_tokens <= 0:
+                        messages.error(request, 'Pool has no liquidity.')
+                        return redirect('liquidity')
+                    
+                    # Calculate tokens to return
+                    share = liquidity_tokens / pool.total_liquidity_tokens
+                    token_a_amount = pool.token_a_reserve * share
+                    token_b_amount = pool.token_b_reserve * share
+                    
+                    # Update pool reserves
+                    pool.token_a_reserve -= token_a_amount
+                    pool.token_b_reserve -= token_b_amount
+                    pool.total_liquidity_tokens -= liquidity_tokens
+                    pool.save()
+                    
+                    # Update user position
+                    position.liquidity_tokens -= liquidity_tokens
+                    if position.liquidity_tokens == 0:
+                        position.delete()
+                    else:
+                        position.save()
+                    
+                    messages.success(request, f'Successfully removed liquidity! Received {token_a_amount:.8f} {pool.token_a_symbol} and {token_b_amount:.8f} {pool.token_b_symbol}.')
                 
             except LiquidityPool.DoesNotExist:
                 messages.error(request, 'Pool not found.')
