@@ -230,7 +230,7 @@
                 <a href="{% url 'explorer' %}">Explorer</a>
                 <a href="{% url 'marketplace' %}">Marketplace</a>
                 <a href="{% url 'portfolio' %}">Portfolio</a>
-                <a href="#docs">Docs</a>
+                <a href="{% url 'api_docs' %}">Docs</a>
                 <a href="{% url 'settings' %}">Settings</a>
                 <form method="post" action="{% url 'logout' %}" class="logout-form">
                     {% csrf_token %}
