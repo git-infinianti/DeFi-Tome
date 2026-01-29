@@ -49,3 +49,21 @@ def portfolio(request):
         'user_wallet': user_wallet,
     }
     return render(request, 'portfolio/index.html', context)
+
+@login_required
+def backup_wallet(request):
+    """Allow user to backup their wallet mnemonic"""
+    user_wallet = getattr(request.user, 'user_wallet', None)
+    
+    if not user_wallet:
+        messages.error(request, 'No wallet found to backup.')
+        return redirect('portfolio')
+    
+    # Generate mnemonic from stored entropy
+    wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+    mnemonic = wallet_instance.get_mnemonic()
+    
+    context = {
+        'mnemonic': mnemonic,
+    }
+    return render(request, 'portfolio/backup.html', context)
