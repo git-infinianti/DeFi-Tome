@@ -44,6 +44,7 @@ Tome/
 ├── User/          # Authentication, profiles, wallet onboarding
 ├── Wallet/        # HD wallet management, key derivation, custody solutions
 ├── DeFi/          # Core protocol logic (swaps, lending, yield, governance)
+├── API/           # RESTful API endpoints, WebSocket connections, external integrations
 ├── Explorer/      # Transaction history, analytics, block explorer
 ├── Marketplace/   # Peer-to-peer trading UI, order books, settlement
 └── Settings/      # User preferences, app configuration, protocol parameters
