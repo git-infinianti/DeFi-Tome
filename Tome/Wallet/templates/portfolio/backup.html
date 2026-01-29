@@ -249,6 +249,39 @@
                 grid-template-columns: 1fr;
             }
         }
+        
+        @media print {
+            header, nav, .logout-form {
+                display: none;
+            }
+            
+            .page-subtitle {
+                margin-bottom: 1rem;
+            }
+            
+            .action-buttons {
+                display: none;
+            }
+            
+            .card {
+                border: none;
+                box-shadow: none;
+            }
+            
+            body {
+                background: white;
+                color: black;
+            }
+            
+            .mnemonic-word {
+                background: white;
+                border: 1px solid #000;
+            }
+            
+            .mnemonic-word .word {
+                color: black;
+            }
+        }
     </style>
 </head>
 <body>
