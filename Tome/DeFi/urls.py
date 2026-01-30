@@ -18,4 +18,10 @@ urlpatterns = [
     path('oracle/submit-price/', views.submit_price, name='submit_price'),
     path('oracle/price-history/<str:token_symbol>/', views.price_history, name='price_history'),
     path('oracle/manage/', views.manage_oracle, name='manage_oracle'),
+    path('lending/', views.lending_home, name='lending_home'),
+    path('lending/deposit/', views.deposit_funds, name='deposit_funds'),
+    path('lending/borrow/', views.borrow_funds, name='borrow_funds'),
+    path('lending/repay/', views.repay_loan, name='repay_loan'),
+    path('lending/withdraw/', views.withdraw_deposit, name='withdraw_deposit'),
+    path('lending/manage/', views.manage_positions, name='manage_positions'),
 ]

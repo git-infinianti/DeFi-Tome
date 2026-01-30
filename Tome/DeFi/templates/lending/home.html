@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collateralized Lending - DeFi Tome</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* Theme variables */
+        :root, .theme-dark, .theme- {
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: rgba(148, 163, 184, 0.2);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --card-bg-hover: rgba(59, 130, 246, 0.05);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #60a5fa;
+        }
+        
+        body.theme-light {
+            --bg-gradient-start: #f8fafc;
+            --bg-gradient-end: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --border-color: rgba(15, 23, 42, 0.2);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-bg-hover: rgba(59, 130, 246, 0.05);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #2563eb;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-left: 2rem;
+            transition: color 0.3s;
+        }
+        
+        nav a:hover {
+            color: var(--accent-primary);
+        }
+        
+        .header-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .header-section h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--accent-light), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header-section p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+        
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .action-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s;
+        }
+        
+        .action-card:hover {
+            border-color: var(--accent-primary);
+            background: var(--card-bg-hover);
+            transform: translateY(-4px);
+        }
+        
+        .action-card h2 {
+            color: var(--accent-light);
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .action-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        .section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .section h2 {
+            color: var(--accent-light);
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .pools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .pool-card {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 10px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .pool-card h3 {
+            color: var(--accent-light);
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .pool-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 6px;
+        }
+        
+        .pool-info label {
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+        
+        .pool-info span {
+            color: var(--text-primary);
+        }
+        
+        .apy {
+            color: #4ade80;
+            font-weight: bold;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+        
+        .messages {
+            margin-bottom: 1.5rem;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .back-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .header-section h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body class="theme-{{ user_theme }}">
+    <div class="container">
+        <header>
+            <div class="logo">DeFi Tome</div>
+            <nav>
+                <a href="{% url 'home' %}">Home</a>
+                <a href="{% url 'testnet_home' %}">DeFi</a>
+                <a href="{% url 'explorer' %}">Explorer</a>
+                <a href="{% url 'marketplace' %}">Marketplace</a>
+                <a href="{% url 'portfolio' %}">Portfolio</a>
+                <a href="{% url 'api_docs' %}">Docs</a>
+                <a href="{% url 'settings' %}">Settings</a>
+            </nav>
+        </header>
+        
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="header-section">
+            <h1>💰 Collateralized Lending</h1>
+            <p>Earn interest on deposits or borrow against your collateral</p>
+        </div>
+        
+        <div class="action-grid">
+            <a href="{% url 'deposit_funds' %}" class="action-card">
+                <h2>💎 Deposit</h2>
+                <p>Earn interest on your deposits with competitive APR</p>
+            </a>
+            
+            <a href="{% url 'borrow_funds' %}" class="action-card">
+                <h2>📊 Borrow</h2>
+                <p>Borrow tokens by providing collateral</p>
+            </a>
+            
+            <a href="{% url 'manage_positions' %}" class="action-card">
+                <h2>⚙️ Manage</h2>
+                <p>View and manage your deposits and loans</p>
+            </a>
+        </div>
+        
+        <div class="section">
+            <h2>Active Lending Pools</h2>
+            {% if lending_pools %}
+            <div class="pools-grid">
+                {% for pool in lending_pools %}
+                <div class="pool-card">
+                    <h3>{{ pool.token_symbol }} Pool</h3>
+                    <div class="pool-info">
+                        <label>Total Deposits:</label>
+                        <span>{{ pool.total_deposits }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Total Borrowed:</label>
+                        <span>{{ pool.total_borrows }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Available:</label>
+                        <span>{{ pool.available_liquidity }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Utilization:</label>
+                        <span>{{ pool.utilization_rate|floatformat:2 }}%</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Supply APR:</label>
+                        <span class="apy">{{ pool.current_supply_rate|floatformat:2 }}%</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Borrow APR:</label>
+                        <span class="apy">{{ pool.current_borrow_rate|floatformat:2 }}%</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="no-data">
+                <p>No lending pools available yet. Check back soon!</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if user.is_authenticated %}
+        <div class="section">
+            <h2>Your Positions</h2>
+            
+            {% if user_deposits %}
+            <h3 style="color: var(--accent-light); margin-bottom: 1rem;">Deposits</h3>
+            <div class="pools-grid">
+                {% for deposit in user_deposits %}
+                <div class="pool-card">
+                    <h3>{{ deposit.pool.token_symbol }}</h3>
+                    <div class="pool-info">
+                        <label>Principal:</label>
+                        <span>{{ deposit.principal_amount }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Interest Earned:</label>
+                        <span class="apy">{{ deposit.accrued_interest }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Total Balance:</label>
+                        <span>{{ deposit.total_balance }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if user_loans %}
+            <h3 style="color: var(--accent-light); margin: 2rem 0 1rem;">Loans</h3>
+            <div class="pools-grid">
+                {% for loan in user_loans %}
+                <div class="pool-card">
+                    <h3>{{ loan.pool.token_symbol }} Loan</h3>
+                    <div class="pool-info">
+                        <label>Borrowed:</label>
+                        <span>{{ loan.principal_amount }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Interest:</label>
+                        <span>{{ loan.accrued_interest }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Total Debt:</label>
+                        <span>{{ loan.total_debt }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Collateral:</label>
+                        <span>{{ loan.collateral_amount }} {{ loan.collateral_asset.token_symbol }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Health Factor:</label>
+                        <span class="{% if loan.health_factor < 1.2 %}apy{% endif %}">{{ loan.health_factor|floatformat:2 }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if not user_deposits and not user_loans %}
+            <div class="no-data">
+                <p>You don't have any positions yet. Start by depositing or borrowing!</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <a href="{% url 'testnet_home' %}" class="back-link">← Back to DeFi</a>
+    </div>
+</body>
+</html>

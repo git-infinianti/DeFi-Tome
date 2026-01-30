@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Borrow - DeFi Tome</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* Theme variables */
+        :root, .theme-dark, .theme- {
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: rgba(148, 163, 184, 0.2);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --card-bg-hover: rgba(59, 130, 246, 0.05);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #60a5fa;
+        }
+        
+        body.theme-light {
+            --bg-gradient-start: #f8fafc;
+            --bg-gradient-end: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --border-color: rgba(15, 23, 42, 0.2);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-bg-hover: rgba(59, 130, 246, 0.05);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #2563eb;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-left: 2rem;
+            transition: color 0.3s;
+        }
+        
+        nav a:hover {
+            color: var(--accent-primary);
+        }
+        
+        .header-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .header-section h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--accent-light), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header-section p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+        
+        .form-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .form-section h2 {
+            color: var(--accent-light);
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+        
+        button {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .info-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .warning-box {
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .warning-box h3 {
+            color: #fbbf24;
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-box h3 {
+            color: var(--accent-light);
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-box p, .warning-box p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        .pools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .pool-card {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 10px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .pool-card h3 {
+            color: var(--accent-light);
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .pool-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 6px;
+        }
+        
+        .pool-info label {
+            font-weight: 500;
+            color: var(--text-muted);
+            margin: 0;
+        }
+        
+        .pool-info span {
+            color: var(--text-primary);
+        }
+        
+        .apy {
+            color: #4ade80;
+            font-weight: bold;
+        }
+        
+        .warning {
+            color: #fbbf24;
+            font-weight: bold;
+        }
+        
+        .messages {
+            margin-bottom: 1.5rem;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .back-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+        }
+    </style>
+</head>
+<body class="theme-{{ user_theme }}">
+    <div class="container">
+        <header>
+            <div class="logo">DeFi Tome</div>
+            <nav>
+                <a href="{% url 'home' %}">Home</a>
+                <a href="{% url 'testnet_home' %}">DeFi</a>
+                <a href="{% url 'lending_home' %}">Lending</a>
+                <a href="{% url 'manage_positions' %}">Manage</a>
+            </nav>
+        </header>
+        
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="header-section">
+            <h1>📊 Borrow Against Collateral</h1>
+            <p>Borrow tokens by providing collateral</p>
+        </div>
+        
+        <div class="form-section">
+            <h2>Create a Loan</h2>
+            
+            <div class="info-box">
+                <h3>How it works</h3>
+                <p>Provide collateral to borrow tokens. Your loan must maintain a healthy collateral ratio. If your health factor drops below 1.0, your position may be liquidated.</p>
+            </div>
+            
+            <div class="warning-box">
+                <h3>⚠️ Risk Warning</h3>
+                <p>Borrowing has risks. If the value of your collateral drops or your debt increases, you may be liquidated with a penalty. Always monitor your health factor!</p>
+            </div>
+            
+            <form method="POST">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="pool_id">Borrow Token:</label>
+                    <select id="pool_id" name="pool_id" required onchange="updatePoolInfo()">
+                        <option value="">-- Select token to borrow --</option>
+                        {% for pool in lending_pools %}
+                        <option value="{{ pool.id }}" 
+                                data-borrow-rate="{{ pool.current_borrow_rate }}"
+                                data-available="{{ pool.available_liquidity }}">
+                            {{ pool.token_symbol }} - {{ pool.current_borrow_rate|floatformat:2 }}% APR
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="collateral_asset_id">Collateral Asset:</label>
+                    <select id="collateral_asset_id" name="collateral_asset_id" required onchange="updateCollateralInfo()">
+                        <option value="">-- Select collateral --</option>
+                        {% for asset in collateral_assets %}
+                        <option value="{{ asset.id }}"
+                                data-factor="{{ asset.collateral_factor }}"
+                                data-threshold="{{ asset.liquidation_threshold }}">
+                            {{ asset.token_symbol }} (Max LTV: {{ asset.collateral_factor }}%)
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="collateral_amount">Collateral Amount:</label>
+                    <input type="text" id="collateral_amount" name="collateral_amount" placeholder="0.00" required oninput="calculateMaxBorrow()">
+                </div>
+                
+                <div class="form-group">
+                    <label for="borrow_amount">Borrow Amount:</label>
+                    <input type="text" id="borrow_amount" name="borrow_amount" placeholder="0.00" required>
+                </div>
+                
+                <div id="loan-details" style="display: none;" class="info-box">
+                    <h3>Loan Details</h3>
+                    <p><strong>Borrow APR:</strong> <span id="borrow-apr" class="apy"></span></p>
+                    <p><strong>Max Borrow:</strong> <span id="max-borrow"></span></p>
+                    <p><strong>Collateral Factor:</strong> <span id="collateral-factor"></span></p>
+                </div>
+                
+                <button type="submit">Borrow</button>
+            </form>
+        </div>
+        
+        {% if user_loans %}
+        <div class="form-section">
+            <h2>Your Active Loans</h2>
+            <div class="pools-grid">
+                {% for loan in user_loans %}
+                <div class="pool-card">
+                    <h3>{{ loan.pool.token_symbol }} Loan</h3>
+                    <div class="pool-info">
+                        <label>Borrowed:</label>
+                        <span>{{ loan.principal_amount }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Interest:</label>
+                        <span>{{ loan.accrued_interest }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Total Debt:</label>
+                        <span>{{ loan.total_debt }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Collateral:</label>
+                        <span>{{ loan.collateral_amount }} {{ loan.collateral_asset.token_symbol }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Health Factor:</label>
+                        <span class="{% if loan.health_factor < 1.2 %}warning{% else %}apy{% endif %}">
+                            {{ loan.health_factor|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Borrow APR:</label>
+                        <span class="apy">{{ loan.pool.current_borrow_rate|floatformat:2 }}%</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <a href="{% url 'lending_home' %}" class="back-link">← Back to Lending</a>
+    </div>
+    
+    <script>
+        function updatePoolInfo() {
+            const select = document.getElementById('pool_id');
+            const selectedOption = select.options[select.selectedIndex];
+            
+            if (selectedOption.value) {
+                const apr = selectedOption.getAttribute('data-borrow-rate');
+                document.getElementById('borrow-apr').textContent = parseFloat(apr).toFixed(2) + '%';
+                calculateMaxBorrow();
+            }
+        }
+        
+        function updateCollateralInfo() {
+            const select = document.getElementById('collateral_asset_id');
+            const selectedOption = select.options[select.selectedIndex];
+            
+            if (selectedOption.value) {
+                const factor = selectedOption.getAttribute('data-factor');
+                document.getElementById('collateral-factor').textContent = factor + '%';
+                calculateMaxBorrow();
+            }
+        }
+        
+        function calculateMaxBorrow() {
+            const poolSelect = document.getElementById('pool_id');
+            const collateralSelect = document.getElementById('collateral_asset_id');
+            const collateralAmount = document.getElementById('collateral_amount').value;
+            const details = document.getElementById('loan-details');
+            
+            if (poolSelect.value && collateralSelect.value && collateralAmount) {
+                const factor = parseFloat(collateralSelect.options[collateralSelect.selectedIndex].getAttribute('data-factor'));
+                const maxBorrow = (parseFloat(collateralAmount) * factor / 100).toFixed(8);
+                
+                document.getElementById('max-borrow').textContent = maxBorrow;
+                details.style.display = 'block';
+            } else {
+                details.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
