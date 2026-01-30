@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeFi Tome Testnet</title>
+    <title>Deposit - DeFi Tome</title>
     <style>
         * {
             margin: 0;
@@ -102,80 +102,87 @@
             color: var(--text-muted);
         }
         
-        .status {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            background: rgba(34, 197, 94, 0.2);
-            color: #4ade80;
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            border-radius: 20px;
-            font-size: 0.9rem;
-            margin-top: 1rem;
-        }
-        
-        .status.inactive {
-            background: rgba(239, 68, 68, 0.2);
-            color: #fca5a5;
-            border-color: rgba(239, 68, 68, 0.3);
-        }
-        
-        .network-id {
-            margin-top: 0.75rem;
-            color: var(--text-muted);
-        }
-        
-        .nav-links {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
+        .form-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
             margin-bottom: 2rem;
         }
         
-        .nav-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 2rem;
-            text-align: center;
-            text-decoration: none;
-            color: inherit;
-            transition: all 0.3s;
-        }
-        
-        .nav-card:hover {
-            border-color: var(--accent-primary);
-            background: var(--card-bg-hover);
-            transform: translateY(-4px);
-        }
-        
-        .nav-card h2 {
-            color: var(--accent-light);
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .nav-card p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-        }
-        
-        .pools-section {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 2rem;
-        }
-        
-        .pools-section h2 {
+        .form-section h2 {
             color: var(--accent-light);
             font-size: 1.8rem;
             margin-bottom: 1.5rem;
         }
         
-        .pool-grid {
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+        
+        button {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .info-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .info-box h3 {
+            color: var(--accent-light);
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-box p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        .pools-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
+            margin-top: 1.5rem;
         }
         
         .pool-card {
@@ -203,16 +210,16 @@
         .pool-info label {
             font-weight: 500;
             color: var(--text-muted);
+            margin: 0;
         }
         
         .pool-info span {
             color: var(--text-primary);
         }
         
-        .no-pools {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-muted);
+        .apy {
+            color: #4ade80;
+            font-weight: bold;
         }
         
         .messages {
@@ -253,10 +260,10 @@
             box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
         }
         
-        @media (max-width: 768px) {
-            .header-section h1 {
-                font-size: 2rem;
-            }
+        .no-data {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
         }
     </style>
 </head>
@@ -267,11 +274,8 @@
             <nav>
                 <a href="{% url 'home' %}">Home</a>
                 <a href="{% url 'testnet_home' %}">DeFi</a>
-                <a href="{% url 'explorer' %}">Explorer</a>
-                <a href="{% url 'marketplace' %}">Marketplace</a>
-                <a href="{% url 'portfolio' %}">Portfolio</a>
-                <a href="{% url 'api_docs' %}">Docs</a>
-                <a href="{% url 'settings' %}">Settings</a>
+                <a href="{% url 'lending_home' %}">Lending</a>
+                <a href="{% url 'manage_positions' %}">Manage</a>
             </nav>
         </header>
         
@@ -286,72 +290,99 @@
         {% endif %}
         
         <div class="header-section">
-            <h1>🚀 DeFi Tome Testnet</h1>
-            <p>Welcome to the DeFi Tome testnet! Experiment with decentralized finance features on Evrmore.</p>
-            {% if testnet_config %}
-            <span class="status {% if not testnet_config.is_active %}inactive{% endif %}">
-                {% if testnet_config.is_active %}✓ Active{% else %}✗ Inactive{% endif %}
-            </span>
-            <p class="network-id">Network ID: {{ testnet_config.network_id }}</p>
-            {% endif %}
+            <h1>💎 Deposit & Earn Interest</h1>
+            <p>Deposit your tokens to earn competitive interest rates</p>
         </div>
         
-        <div class="nav-links">
-            <a href="{% url 'swap' %}" class="nav-card">
-                <h2>🔄 Swap</h2>
-                <p>Exchange tokens instantly using our automated market maker</p>
-            </a>
+        <div class="form-section">
+            <h2>Make a Deposit</h2>
             
-            <a href="{% url 'liquidity' %}" class="nav-card">
-                <h2>💧 Liquidity</h2>
-                <p>Add or remove liquidity from pools and earn fees</p>
-            </a>
+            <div class="info-box">
+                <h3>How it works</h3>
+                <p>Deposit your tokens into a lending pool to earn interest. Your deposits can be borrowed by other users who provide collateral. Interest accrues automatically and you can withdraw at any time (subject to available liquidity).</p>
+            </div>
             
-            <a href="{% url 'lending_home' %}" class="nav-card">
-                <h2>💰 Lending</h2>
-                <p>Earn interest on deposits or borrow against collateral</p>
-            </a>
-            
-            <a href="{% url 'transactions' %}" class="nav-card">
-                <h2>📊 Transactions</h2>
-                <p>View your transaction history and activity</p>
-            </a>
+            <form method="POST">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="pool_id">Select Pool:</label>
+                    <select id="pool_id" name="pool_id" required onchange="updatePoolInfo()">
+                        <option value="">-- Select a pool --</option>
+                        {% for pool in lending_pools %}
+                        <option value="{{ pool.id }}" 
+                                data-supply-rate="{{ pool.current_supply_rate }}"
+                                data-utilization="{{ pool.utilization_rate }}">
+                            {{ pool.token_symbol }} - {{ pool.current_supply_rate|floatformat:2 }}% APR
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="amount">Amount:</label>
+                    <input type="text" id="amount" name="amount" placeholder="0.00" required>
+                </div>
+                
+                <div id="pool-details" style="display: none;" class="info-box">
+                    <h3>Pool Details</h3>
+                    <p><strong>Current APR:</strong> <span id="current-apr" class="apy"></span></p>
+                    <p><strong>Utilization:</strong> <span id="utilization"></span></p>
+                </div>
+                
+                <button type="submit">Deposit</button>
+            </form>
         </div>
         
-        <div class="pools-section">
-            <h2>Active Liquidity Pools</h2>
-            {% if pools %}
-            <div class="pool-grid">
-                {% for pool in pools %}
+        {% if user_deposits %}
+        <div class="form-section">
+            <h2>Your Deposits</h2>
+            <div class="pools-grid">
+                {% for deposit in user_deposits %}
                 <div class="pool-card">
-                    <h3>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</h3>
+                    <h3>{{ deposit.pool.token_symbol }}</h3>
                     <div class="pool-info">
-                        <label>{{ pool.token_a_symbol }} Reserve:</label>
-                        <span>{{ pool.token_a_reserve }}</span>
+                        <label>Principal:</label>
+                        <span>{{ deposit.principal_amount }}</span>
                     </div>
                     <div class="pool-info">
-                        <label>{{ pool.token_b_symbol }} Reserve:</label>
-                        <span>{{ pool.token_b_reserve }}</span>
+                        <label>Interest Earned:</label>
+                        <span class="apy">{{ deposit.accrued_interest }}</span>
                     </div>
                     <div class="pool-info">
-                        <label>Fee:</label>
-                        <span>{{ pool.fee_percentage }}%</span>
+                        <label>Total Balance:</label>
+                        <span>{{ deposit.total_balance }}</span>
                     </div>
                     <div class="pool-info">
-                        <label>Total Liquidity:</label>
-                        <span>{{ pool.total_liquidity_tokens }}</span>
+                        <label>Current APR:</label>
+                        <span class="apy">{{ deposit.pool.current_supply_rate|floatformat:2 }}%</span>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-            {% else %}
-            <div class="no-pools">
-                <p>No liquidity pools available yet. Check back soon!</p>
-            </div>
-            {% endif %}
         </div>
+        {% endif %}
         
-        <a href="{% url 'home' %}" class="back-link">← Back to Dashboard</a>
+        <a href="{% url 'lending_home' %}" class="back-link">← Back to Lending</a>
     </div>
+    
+    <script>
+        function updatePoolInfo() {
+            const select = document.getElementById('pool_id');
+            const details = document.getElementById('pool-details');
+            const selectedOption = select.options[select.selectedIndex];
+            
+            if (selectedOption.value) {
+                const apr = selectedOption.getAttribute('data-supply-rate');
+                const utilization = selectedOption.getAttribute('data-utilization');
+                
+                document.getElementById('current-apr').textContent = parseFloat(apr).toFixed(2) + '%';
+                document.getElementById('utilization').textContent = parseFloat(utilization).toFixed(2) + '%';
+                
+                details.style.display = 'block';
+            } else {
+                details.style.display = 'none';
+            }
+        }
+    </script>
 </body>
 </html>

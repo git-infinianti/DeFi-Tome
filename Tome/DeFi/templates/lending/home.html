@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeFi Tome Testnet</title>
+    <title>Collateralized Lending - DeFi Tome</title>
     <style>
         * {
             margin: 0;
@@ -48,7 +48,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
         }
@@ -102,36 +102,14 @@
             color: var(--text-muted);
         }
         
-        .status {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            background: rgba(34, 197, 94, 0.2);
-            color: #4ade80;
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            border-radius: 20px;
-            font-size: 0.9rem;
-            margin-top: 1rem;
-        }
-        
-        .status.inactive {
-            background: rgba(239, 68, 68, 0.2);
-            color: #fca5a5;
-            border-color: rgba(239, 68, 68, 0.3);
-        }
-        
-        .network-id {
-            margin-top: 0.75rem;
-            color: var(--text-muted);
-        }
-        
-        .nav-links {
+        .action-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 1.5rem;
-            margin-bottom: 2rem;
+            margin-bottom: 3rem;
         }
         
-        .nav-card {
+        .action-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 12px;
@@ -142,39 +120,40 @@
             transition: all 0.3s;
         }
         
-        .nav-card:hover {
+        .action-card:hover {
             border-color: var(--accent-primary);
             background: var(--card-bg-hover);
             transform: translateY(-4px);
         }
         
-        .nav-card h2 {
+        .action-card h2 {
             color: var(--accent-light);
             font-size: 1.5rem;
             margin-bottom: 0.5rem;
         }
         
-        .nav-card p {
+        .action-card p {
             color: var(--text-muted);
             font-size: 0.95rem;
         }
         
-        .pools-section {
+        .section {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 2rem;
+            margin-bottom: 2rem;
         }
         
-        .pools-section h2 {
+        .section h2 {
             color: var(--accent-light);
             font-size: 1.8rem;
             margin-bottom: 1.5rem;
         }
         
-        .pool-grid {
+        .pools-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 1.5rem;
         }
         
@@ -209,7 +188,12 @@
             color: var(--text-primary);
         }
         
-        .no-pools {
+        .apy {
+            color: #4ade80;
+            font-weight: bold;
+        }
+        
+        .no-data {
             text-align: center;
             padding: 3rem;
             color: var(--text-muted);
@@ -286,72 +270,135 @@
         {% endif %}
         
         <div class="header-section">
-            <h1>🚀 DeFi Tome Testnet</h1>
-            <p>Welcome to the DeFi Tome testnet! Experiment with decentralized finance features on Evrmore.</p>
-            {% if testnet_config %}
-            <span class="status {% if not testnet_config.is_active %}inactive{% endif %}">
-                {% if testnet_config.is_active %}✓ Active{% else %}✗ Inactive{% endif %}
-            </span>
-            <p class="network-id">Network ID: {{ testnet_config.network_id }}</p>
-            {% endif %}
+            <h1>💰 Collateralized Lending</h1>
+            <p>Earn interest on deposits or borrow against your collateral</p>
         </div>
         
-        <div class="nav-links">
-            <a href="{% url 'swap' %}" class="nav-card">
-                <h2>🔄 Swap</h2>
-                <p>Exchange tokens instantly using our automated market maker</p>
+        <div class="action-grid">
+            <a href="{% url 'deposit_funds' %}" class="action-card">
+                <h2>💎 Deposit</h2>
+                <p>Earn interest on your deposits with competitive APR</p>
             </a>
             
-            <a href="{% url 'liquidity' %}" class="nav-card">
-                <h2>💧 Liquidity</h2>
-                <p>Add or remove liquidity from pools and earn fees</p>
+            <a href="{% url 'borrow_funds' %}" class="action-card">
+                <h2>📊 Borrow</h2>
+                <p>Borrow tokens by providing collateral</p>
             </a>
             
-            <a href="{% url 'lending_home' %}" class="nav-card">
-                <h2>💰 Lending</h2>
-                <p>Earn interest on deposits or borrow against collateral</p>
-            </a>
-            
-            <a href="{% url 'transactions' %}" class="nav-card">
-                <h2>📊 Transactions</h2>
-                <p>View your transaction history and activity</p>
+            <a href="{% url 'manage_positions' %}" class="action-card">
+                <h2>⚙️ Manage</h2>
+                <p>View and manage your deposits and loans</p>
             </a>
         </div>
         
-        <div class="pools-section">
-            <h2>Active Liquidity Pools</h2>
-            {% if pools %}
-            <div class="pool-grid">
-                {% for pool in pools %}
+        <div class="section">
+            <h2>Active Lending Pools</h2>
+            {% if lending_pools %}
+            <div class="pools-grid">
+                {% for pool in lending_pools %}
                 <div class="pool-card">
-                    <h3>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</h3>
+                    <h3>{{ pool.token_symbol }} Pool</h3>
                     <div class="pool-info">
-                        <label>{{ pool.token_a_symbol }} Reserve:</label>
-                        <span>{{ pool.token_a_reserve }}</span>
+                        <label>Total Deposits:</label>
+                        <span>{{ pool.total_deposits }}</span>
                     </div>
                     <div class="pool-info">
-                        <label>{{ pool.token_b_symbol }} Reserve:</label>
-                        <span>{{ pool.token_b_reserve }}</span>
+                        <label>Total Borrowed:</label>
+                        <span>{{ pool.total_borrows }}</span>
                     </div>
                     <div class="pool-info">
-                        <label>Fee:</label>
-                        <span>{{ pool.fee_percentage }}%</span>
+                        <label>Available:</label>
+                        <span>{{ pool.available_liquidity }}</span>
                     </div>
                     <div class="pool-info">
-                        <label>Total Liquidity:</label>
-                        <span>{{ pool.total_liquidity_tokens }}</span>
+                        <label>Utilization:</label>
+                        <span>{{ pool.utilization_rate|floatformat:2 }}%</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Supply APR:</label>
+                        <span class="apy">{{ pool.current_supply_rate|floatformat:2 }}%</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Borrow APR:</label>
+                        <span class="apy">{{ pool.current_borrow_rate|floatformat:2 }}%</span>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <div class="no-pools">
-                <p>No liquidity pools available yet. Check back soon!</p>
+            <div class="no-data">
+                <p>No lending pools available yet. Check back soon!</p>
             </div>
             {% endif %}
         </div>
         
-        <a href="{% url 'home' %}" class="back-link">← Back to Dashboard</a>
+        {% if user.is_authenticated %}
+        <div class="section">
+            <h2>Your Positions</h2>
+            
+            {% if user_deposits %}
+            <h3 style="color: var(--accent-light); margin-bottom: 1rem;">Deposits</h3>
+            <div class="pools-grid">
+                {% for deposit in user_deposits %}
+                <div class="pool-card">
+                    <h3>{{ deposit.pool.token_symbol }}</h3>
+                    <div class="pool-info">
+                        <label>Principal:</label>
+                        <span>{{ deposit.principal_amount }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Interest Earned:</label>
+                        <span class="apy">{{ deposit.accrued_interest }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Total Balance:</label>
+                        <span>{{ deposit.total_balance }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if user_loans %}
+            <h3 style="color: var(--accent-light); margin: 2rem 0 1rem;">Loans</h3>
+            <div class="pools-grid">
+                {% for loan in user_loans %}
+                <div class="pool-card">
+                    <h3>{{ loan.pool.token_symbol }} Loan</h3>
+                    <div class="pool-info">
+                        <label>Borrowed:</label>
+                        <span>{{ loan.principal_amount }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Interest:</label>
+                        <span>{{ loan.accrued_interest }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Total Debt:</label>
+                        <span>{{ loan.total_debt }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Collateral:</label>
+                        <span>{{ loan.collateral_amount }} {{ loan.collateral_asset.token_symbol }}</span>
+                    </div>
+                    <div class="pool-info">
+                        <label>Health Factor:</label>
+                        <span class="{% if loan.health_factor < 1.0 %}danger{% elif loan.health_factor < 1.2 %}warning{% else %}apy{% endif %}">{{ loan.health_factor|floatformat:2 }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if not user_deposits and not user_loans %}
+            <div class="no-data">
+                <p>You don't have any positions yet. Start by depositing or borrowing!</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <a href="{% url 'testnet_home' %}" class="back-link">← Back to DeFi</a>
     </div>
 </body>
 </html>

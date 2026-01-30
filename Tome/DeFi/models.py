@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from decimal import Decimal
 
 # Create your models here.
 
@@ -188,3 +189,187 @@ class PriceFeedAggregation(models.Model):
         indexes = [
             models.Index(fields=['token_symbol', '-timestamp']),
         ]
+
+class CollateralAsset(models.Model):
+    """Supported collateral assets for lending"""
+    token_symbol = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=100)
+    collateral_factor = models.DecimalField(max_digits=5, decimal_places=2, default=75.0)  # Max 75% LTV
+    liquidation_threshold = models.DecimalField(max_digits=5, decimal_places=2, default=80.0)  # Liquidate at 80% LTV
+    liquidation_penalty = models.DecimalField(max_digits=5, decimal_places=2, default=10.0)  # 10% penalty
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"CollateralAsset({self.token_symbol}, factor={self.collateral_factor}%)"
+    
+    class Meta:
+        ordering = ['token_symbol']
+
+class InterestRateConfig(models.Model):
+    """Configuration for interest rates in lending pools"""
+    token_symbol = models.CharField(max_length=10, unique=True)
+    base_rate = models.DecimalField(max_digits=5, decimal_places=2, default=2.0)  # Base APR 2%
+    optimal_utilization = models.DecimalField(max_digits=5, decimal_places=2, default=80.0)  # Optimal at 80%
+    slope_1 = models.DecimalField(max_digits=5, decimal_places=2, default=4.0)  # Slope before optimal
+    slope_2 = models.DecimalField(max_digits=5, decimal_places=2, default=75.0)  # Slope after optimal
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"InterestRateConfig({self.token_symbol}, base={self.base_rate}%)"
+    
+    def calculate_borrow_rate(self, utilization_rate):
+        """Calculate borrow APR based on utilization rate"""
+        if utilization_rate <= self.optimal_utilization:
+            rate = self.base_rate + (utilization_rate / self.optimal_utilization) * self.slope_1
+        else:
+            excess = utilization_rate - self.optimal_utilization
+            rate = self.base_rate + self.slope_1 + (excess / (Decimal('100') - self.optimal_utilization)) * self.slope_2
+        return rate
+    
+    def calculate_supply_rate(self, utilization_rate, borrow_rate):
+        """Calculate supply APR based on utilization and borrow rate"""
+        # Supply rate = Borrow rate * Utilization rate * (1 - reserve factor)
+        reserve_factor = Decimal('0.10')  # 10% reserve
+        return borrow_rate * utilization_rate / Decimal('100') * (Decimal('1') - reserve_factor)
+
+class LendingPool(models.Model):
+    """Lending pool for a specific token"""
+    token_symbol = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=100)
+    total_deposits = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    total_borrows = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    total_reserves = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    interest_rate_config = models.ForeignKey(InterestRateConfig, on_delete=models.PROTECT, related_name='pools')
+    last_accrual_time = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"LendingPool({self.token_symbol}, deposits={self.total_deposits}, borrows={self.total_borrows})"
+    
+    @property
+    def available_liquidity(self):
+        """Calculate available liquidity for borrowing"""
+        return self.total_deposits - self.total_borrows
+    
+    @property
+    def utilization_rate(self):
+        """Calculate utilization rate percentage"""
+        if self.total_deposits == 0:
+            return Decimal('0')
+        return (self.total_borrows / self.total_deposits) * Decimal('100')
+    
+    @property
+    def current_borrow_rate(self):
+        """Get current borrow APR"""
+        return self.interest_rate_config.calculate_borrow_rate(self.utilization_rate)
+    
+    @property
+    def current_supply_rate(self):
+        """Get current supply APR"""
+        return self.interest_rate_config.calculate_supply_rate(self.utilization_rate, self.current_borrow_rate)
+    
+    class Meta:
+        ordering = ['token_symbol']
+
+class Deposit(models.Model):
+    """User deposit in a lending pool"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='deposits')
+    pool = models.ForeignKey(LendingPool, on_delete=models.CASCADE, related_name='deposits')
+    principal_amount = models.DecimalField(max_digits=30, decimal_places=8)
+    accrued_interest = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    last_interest_update = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Deposit({self.user.username}, {self.principal_amount} {self.pool.token_symbol})"
+    
+    @property
+    def total_balance(self):
+        """Total balance including accrued interest"""
+        return self.principal_amount + self.accrued_interest
+    
+    class Meta:
+        unique_together = ['user', 'pool']
+        ordering = ['-created_at']
+
+class Loan(models.Model):
+    """User loan backed by collateral"""
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('repaid', 'Repaid'),
+        ('liquidated', 'Liquidated'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='loans')
+    pool = models.ForeignKey(LendingPool, on_delete=models.CASCADE, related_name='loans')
+    collateral_asset = models.ForeignKey(CollateralAsset, on_delete=models.PROTECT, related_name='loans')
+    
+    # Loan details
+    principal_amount = models.DecimalField(max_digits=30, decimal_places=8)
+    accrued_interest = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    collateral_amount = models.DecimalField(max_digits=30, decimal_places=8)
+    
+    # Status and timestamps
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    last_interest_update = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    repaid_at = models.DateTimeField(null=True, blank=True)
+    liquidated_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"Loan({self.user.username}, {self.principal_amount} {self.pool.token_symbol}, status={self.status})"
+    
+    @property
+    def total_debt(self):
+        """Total debt including accrued interest"""
+        return self.principal_amount + self.accrued_interest
+    
+    @property
+    def health_factor(self):
+        """Calculate loan health factor (>1 is healthy, <1 can be liquidated)"""
+        # Health Factor = (Collateral Value * Liquidation Threshold) / Total Debt
+        # For simplicity, using 1:1 price ratio - in production would use oracle prices
+        collateral_value = self.collateral_amount
+        threshold = self.collateral_asset.liquidation_threshold / Decimal('100')
+        if self.total_debt == 0:
+            return Decimal('999')  # Very healthy
+        return (collateral_value * threshold) / self.total_debt
+    
+    class Meta:
+        ordering = ['-created_at']
+
+class LoanRepayment(models.Model):
+    """Record of loan repayments"""
+    loan = models.ForeignKey(Loan, on_delete=models.CASCADE, related_name='repayments')
+    amount = models.DecimalField(max_digits=30, decimal_places=8)
+    interest_paid = models.DecimalField(max_digits=30, decimal_places=8)
+    principal_paid = models.DecimalField(max_digits=30, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"LoanRepayment({self.loan.id}, amount={self.amount})"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+class Liquidation(models.Model):
+    """Record of liquidated loans"""
+    loan = models.OneToOneField(Loan, on_delete=models.CASCADE, related_name='liquidation')
+    liquidator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='liquidations_performed', null=True, blank=True)
+    collateral_seized = models.DecimalField(max_digits=30, decimal_places=8)
+    debt_covered = models.DecimalField(max_digits=30, decimal_places=8)
+    liquidation_penalty = models.DecimalField(max_digits=30, decimal_places=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Liquidation(loan={self.loan.id}, debt_covered={self.debt_covered})"
+    
+    class Meta:
+        ordering = ['-created_at']

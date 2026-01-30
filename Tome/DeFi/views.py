@@ -10,7 +10,8 @@ import uuid
 from .models import (
     TestnetConfig, LiquidityPool, LiquidityPosition, SwapTransaction, 
     SwapOffer, SwapEscrow, P2PSwapTransaction, PriceFeedSource, 
-    PriceFeedData, PriceFeedAggregation
+    PriceFeedData, PriceFeedAggregation, CollateralAsset, InterestRateConfig,
+    LendingPool, Deposit, Loan, LoanRepayment, Liquidation
 )
 import statistics
 
@@ -790,3 +791,349 @@ def _aggregate_price_feeds(token_symbol):
         num_sources=num_sources,
         confidence_score=Decimal(str(confidence))
     )
+
+
+# Lending Views
+
+def lending_home(request):
+    """Display lending home page with overview"""
+    lending_pools = LendingPool.objects.filter(is_active=True)
+    collateral_assets = CollateralAsset.objects.filter(is_active=True)
+    
+    # Get user deposits and loans if authenticated
+    user_deposits = []
+    user_loans = []
+    if request.user.is_authenticated:
+        user_deposits = Deposit.objects.filter(user=request.user)
+        user_loans = Loan.objects.filter(user=request.user, status='active')
+    
+    context = {
+        'lending_pools': lending_pools,
+        'collateral_assets': collateral_assets,
+        'user_deposits': user_deposits,
+        'user_loans': user_loans,
+    }
+    return render(request, 'lending/home.html', context)
+
+@login_required
+def deposit_funds(request):
+    """Handle deposits to earn interest"""
+    lending_pools = LendingPool.objects.filter(is_active=True)
+    
+    if request.method == 'POST':
+        pool_id = request.POST.get('pool_id')
+        amount = request.POST.get('amount', '').strip()
+        
+        # Validate inputs
+        if not pool_id or not amount:
+            messages.error(request, 'All fields are required.')
+            return redirect('deposit_funds')
+        
+        try:
+            amount = Decimal(amount)
+            if amount <= 0:
+                messages.error(request, 'Amount must be greater than zero.')
+                return redirect('deposit_funds')
+        except (ValueError, InvalidOperation):
+            messages.error(request, 'Invalid amount specified.')
+            return redirect('deposit_funds')
+        
+        try:
+            with transaction.atomic():
+                pool = LendingPool.objects.select_for_update().get(id=pool_id, is_active=True)
+                
+                # Get or create deposit record
+                deposit, created = Deposit.objects.get_or_create(
+                    user=request.user,
+                    pool=pool,
+                    defaults={'principal_amount': Decimal('0')}
+                )
+                
+                # Update deposit amount
+                deposit.principal_amount += amount
+                deposit.last_interest_update = timezone.now()
+                deposit.save()
+                
+                # Update pool totals
+                pool.total_deposits += amount
+                pool.save()
+                
+                messages.success(request, f'Successfully deposited {amount} {pool.token_symbol}. You are now earning {pool.current_supply_rate:.2f}% APR!')
+                return redirect('lending_home')
+                
+        except LendingPool.DoesNotExist:
+            messages.error(request, 'Invalid lending pool selected.')
+            return redirect('deposit_funds')
+        except Exception as e:
+            messages.error(request, f'Error processing deposit: {str(e)}')
+            return redirect('deposit_funds')
+    
+    # Get user's existing deposits
+    user_deposits = Deposit.objects.filter(user=request.user)
+    
+    context = {
+        'lending_pools': lending_pools,
+        'user_deposits': user_deposits,
+    }
+    return render(request, 'lending/deposit.html', context)
+
+@login_required
+def borrow_funds(request):
+    """Handle borrowing against collateral"""
+    lending_pools = LendingPool.objects.filter(is_active=True)
+    collateral_assets = CollateralAsset.objects.filter(is_active=True)
+    
+    if request.method == 'POST':
+        pool_id = request.POST.get('pool_id')
+        collateral_asset_id = request.POST.get('collateral_asset_id')
+        borrow_amount = request.POST.get('borrow_amount', '').strip()
+        collateral_amount = request.POST.get('collateral_amount', '').strip()
+        
+        # Validate inputs
+        if not pool_id or not collateral_asset_id or not borrow_amount or not collateral_amount:
+            messages.error(request, 'All fields are required.')
+            return redirect('borrow_funds')
+        
+        try:
+            borrow_amount = Decimal(borrow_amount)
+            collateral_amount = Decimal(collateral_amount)
+            
+            if borrow_amount <= 0 or collateral_amount <= 0:
+                messages.error(request, 'Amounts must be greater than zero.')
+                return redirect('borrow_funds')
+        except (ValueError, InvalidOperation):
+            messages.error(request, 'Invalid amounts specified.')
+            return redirect('borrow_funds')
+        
+        try:
+            with transaction.atomic():
+                pool = LendingPool.objects.select_for_update().get(id=pool_id, is_active=True)
+                collateral_asset = CollateralAsset.objects.get(id=collateral_asset_id, is_active=True)
+                
+                # Check if pool has sufficient liquidity
+                if borrow_amount > pool.available_liquidity:
+                    messages.error(request, f'Insufficient liquidity. Available: {pool.available_liquidity} {pool.token_symbol}')
+                    return redirect('borrow_funds')
+                
+                # Calculate maximum borrowable amount based on collateral
+                # Using 1:1 price for simplicity - in production would use oracle prices
+                max_borrow = collateral_amount * collateral_asset.collateral_factor / Decimal('100')
+                
+                if borrow_amount > max_borrow:
+                    messages.error(request, f'Borrow amount exceeds maximum. Max: {max_borrow:.8f} {pool.token_symbol}')
+                    return redirect('borrow_funds')
+                
+                # Create loan
+                loan = Loan.objects.create(
+                    user=request.user,
+                    pool=pool,
+                    collateral_asset=collateral_asset,
+                    principal_amount=borrow_amount,
+                    collateral_amount=collateral_amount,
+                    accrued_interest=Decimal('0'),
+                    status='active'
+                )
+                
+                # Update pool totals
+                pool.total_borrows += borrow_amount
+                pool.save()
+                
+                messages.success(request, f'Successfully borrowed {borrow_amount} {pool.token_symbol} with {collateral_amount} {collateral_asset.token_symbol} as collateral.')
+                return redirect('lending_home')
+                
+        except LendingPool.DoesNotExist:
+            messages.error(request, 'Invalid lending pool selected.')
+            return redirect('borrow_funds')
+        except CollateralAsset.DoesNotExist:
+            messages.error(request, 'Invalid collateral asset selected.')
+            return redirect('borrow_funds')
+        except Exception as e:
+            messages.error(request, f'Error processing borrow: {str(e)}')
+            return redirect('borrow_funds')
+    
+    # Get user's existing loans
+    user_loans = Loan.objects.filter(user=request.user, status='active')
+    
+    context = {
+        'lending_pools': lending_pools,
+        'collateral_assets': collateral_assets,
+        'user_loans': user_loans,
+    }
+    return render(request, 'lending/borrow.html', context)
+
+@login_required
+def repay_loan(request):
+    """Handle loan repayment"""
+    if request.method == 'POST':
+        loan_id = request.POST.get('loan_id')
+        amount = request.POST.get('amount', '').strip()
+        
+        # Validate inputs
+        if not loan_id or not amount:
+            messages.error(request, 'All fields are required.')
+            return redirect('manage_positions')
+        
+        try:
+            amount = Decimal(amount)
+            if amount <= 0:
+                messages.error(request, 'Amount must be greater than zero.')
+                return redirect('manage_positions')
+        except (ValueError, InvalidOperation):
+            messages.error(request, 'Invalid amount specified.')
+            return redirect('manage_positions')
+        
+        try:
+            with transaction.atomic():
+                loan = Loan.objects.select_for_update().get(id=loan_id, user=request.user, status='active')
+                pool = LendingPool.objects.select_for_update().get(id=loan.pool_id)
+                
+                total_debt = loan.total_debt
+                
+                # Check if amount exceeds debt
+                if amount > total_debt:
+                    amount = total_debt
+                
+                # Calculate interest and principal portions
+                if amount >= loan.accrued_interest:
+                    interest_paid = loan.accrued_interest
+                    principal_paid = amount - interest_paid
+                else:
+                    interest_paid = amount
+                    principal_paid = Decimal('0')
+                
+                # Update loan
+                loan.accrued_interest -= interest_paid
+                loan.principal_amount -= principal_paid
+                
+                # Record repayment
+                LoanRepayment.objects.create(
+                    loan=loan,
+                    amount=amount,
+                    interest_paid=interest_paid,
+                    principal_paid=principal_paid
+                )
+                
+                # Update pool totals
+                pool.total_borrows -= principal_paid
+                pool.total_reserves += interest_paid
+                pool.save()
+                
+                # If fully repaid, mark as such
+                if loan.principal_amount <= Decimal('0.00000001') and loan.accrued_interest <= Decimal('0.00000001'):
+                    loan.status = 'repaid'
+                    loan.repaid_at = timezone.now()
+                    messages.success(request, f'Loan fully repaid! {loan.collateral_amount} {loan.collateral_asset.token_symbol} collateral returned.')
+                else:
+                    messages.success(request, f'Successfully repaid {amount} {pool.token_symbol}. Remaining debt: {loan.total_debt:.8f}')
+                
+                loan.save()
+                return redirect('manage_positions')
+                
+        except Loan.DoesNotExist:
+            messages.error(request, 'Invalid loan selected.')
+            return redirect('manage_positions')
+        except Exception as e:
+            messages.error(request, f'Error processing repayment: {str(e)}')
+            return redirect('manage_positions')
+    
+    return redirect('manage_positions')
+
+@login_required
+def withdraw_deposit(request):
+    """Handle withdrawal of deposits"""
+    if request.method == 'POST':
+        deposit_id = request.POST.get('deposit_id')
+        amount = request.POST.get('amount', '').strip()
+        
+        # Validate inputs
+        if not deposit_id or not amount:
+            messages.error(request, 'All fields are required.')
+            return redirect('manage_positions')
+        
+        try:
+            amount = Decimal(amount)
+            if amount <= 0:
+                messages.error(request, 'Amount must be greater than zero.')
+                return redirect('manage_positions')
+        except (ValueError, InvalidOperation):
+            messages.error(request, 'Invalid amount specified.')
+            return redirect('manage_positions')
+        
+        try:
+            with transaction.atomic():
+                deposit = Deposit.objects.select_for_update().get(id=deposit_id, user=request.user)
+                pool = LendingPool.objects.select_for_update().get(id=deposit.pool_id)
+                
+                # Check available balance
+                available = deposit.total_balance
+                if amount > available:
+                    messages.error(request, f'Insufficient balance. Available: {available:.8f} {pool.token_symbol}')
+                    return redirect('manage_positions')
+                
+                # Check pool liquidity
+                if amount > pool.available_liquidity:
+                    messages.error(request, f'Insufficient pool liquidity. Try a smaller amount.')
+                    return redirect('manage_positions')
+                
+                # Withdraw from accrued interest first, then principal
+                withdrawn_interest = Decimal('0')
+                withdrawn_principal = Decimal('0')
+                
+                if amount <= deposit.accrued_interest:
+                    withdrawn_interest = amount
+                    deposit.accrued_interest -= amount
+                else:
+                    withdrawn_interest = deposit.accrued_interest
+                    withdrawn_principal = amount - withdrawn_interest
+                    deposit.accrued_interest = Decimal('0')
+                    deposit.principal_amount -= withdrawn_principal
+                
+                deposit.save()
+                
+                # Update pool totals
+                pool.total_deposits -= withdrawn_principal
+                pool.total_reserves -= withdrawn_interest
+                pool.save()
+                
+                # If deposit is now effectively zero, delete it
+                if deposit.total_balance <= Decimal('0.00000001'):
+                    deposit.delete()
+                
+                messages.success(request, f'Successfully withdrew {amount:.8f} {pool.token_symbol}')
+                return redirect('manage_positions')
+                
+        except Deposit.DoesNotExist:
+            messages.error(request, 'Invalid deposit selected.')
+            return redirect('manage_positions')
+        except Exception as e:
+            messages.error(request, f'Error processing withdrawal: {str(e)}')
+            return redirect('manage_positions')
+    
+    return redirect('manage_positions')
+
+@login_required
+def manage_positions(request):
+    """View and manage user's deposits and loans"""
+    from django.db.models import Sum
+    
+    user_deposits = Deposit.objects.filter(user=request.user).select_related('pool')
+    user_loans = Loan.objects.filter(user=request.user).exclude(status='repaid').select_related('pool', 'collateral_asset')
+    
+    # Calculate totals using aggregation
+    deposits_agg = user_deposits.aggregate(
+        total=Sum('principal_amount') 
+    )
+    loans_agg = user_loans.aggregate(
+        total=Sum('principal_amount')
+    )
+    
+    total_deposited = deposits_agg['total'] or Decimal('0')
+    total_borrowed = loans_agg['total'] or Decimal('0')
+    
+    context = {
+        'user_deposits': user_deposits,
+        'user_loans': user_loans,
+        'total_deposited': total_deposited,
+        'total_borrowed': total_borrowed,
+    }
+    return render(request, 'lending/manage.html', context)
