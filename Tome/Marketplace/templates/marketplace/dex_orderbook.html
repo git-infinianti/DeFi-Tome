@@ -573,9 +573,9 @@
                     
                     <!-- Trade Type Tabs -->
                     <div class="trade-type-tabs">
-                        <button class="trade-type-tab active" onclick="switchTab('market')">Market</button>
-                        <button class="trade-type-tab" onclick="switchTab('limit')">Limit</button>
-                        <button class="trade-type-tab" onclick="switchTab('stoploss')">Stop-Loss</button>
+                        <button class="trade-type-tab active" onclick="switchTab(event, 'market')">Market</button>
+                        <button class="trade-type-tab" onclick="switchTab(event, 'limit')">Limit</button>
+                        <button class="trade-type-tab" onclick="switchTab(event, 'stoploss')">Stop-Loss</button>
                     </div>
                     
                     <!-- Market Order Form -->
@@ -584,8 +584,8 @@
                         <input type="hidden" name="pair_id" value="{{ selected_pair.id }}">
                         
                         <div class="side-selector">
-                            <button type="button" class="side-btn buy active" onclick="selectSide('market', 'buy')">Buy</button>
-                            <button type="button" class="side-btn sell" onclick="selectSide('market', 'sell')">Sell</button>
+                            <button type="button" class="side-btn buy active" onclick="selectSide(event, 'market', 'buy')">Buy</button>
+                            <button type="button" class="side-btn sell" onclick="selectSide(event, 'market', 'sell')">Sell</button>
                         </div>
                         <input type="hidden" name="side" value="buy" id="market-side">
                         
@@ -604,8 +604,8 @@
                         <input type="hidden" name="pair_id" value="{{ selected_pair.id }}">
                         
                         <div class="side-selector">
-                            <button type="button" class="side-btn buy active" onclick="selectSide('limit', 'buy')">Buy</button>
-                            <button type="button" class="side-btn sell" onclick="selectSide('limit', 'sell')">Sell</button>
+                            <button type="button" class="side-btn buy active" onclick="selectSide(event, 'limit', 'buy')">Buy</button>
+                            <button type="button" class="side-btn sell" onclick="selectSide(event, 'limit', 'sell')">Sell</button>
                         </div>
                         <input type="hidden" name="side" value="buy" id="limit-side">
                         
@@ -629,8 +629,8 @@
                         <input type="hidden" name="pair_id" value="{{ selected_pair.id }}">
                         
                         <div class="side-selector">
-                            <button type="button" class="side-btn buy active" onclick="selectSide('stoploss', 'buy')">Buy</button>
-                            <button type="button" class="side-btn sell" onclick="selectSide('stoploss', 'sell')">Sell</button>
+                            <button type="button" class="side-btn buy active" onclick="selectSide(event, 'stoploss', 'buy')">Buy</button>
+                            <button type="button" class="side-btn sell" onclick="selectSide(event, 'stoploss', 'sell')">Sell</button>
                         </div>
                         <input type="hidden" name="side" value="buy" id="stoploss-side">
                         
@@ -654,7 +654,7 @@
     </div>
     
     <script>
-        function switchTab(type) {
+        function switchTab(event, type) {
             // Update tab buttons
             const tabs = document.querySelectorAll('.trade-type-tab');
             tabs.forEach(tab => tab.classList.remove('active'));
@@ -666,7 +666,7 @@
             document.getElementById(type + '-form').classList.add('active');
         }
         
-        function selectSide(formType, side) {
+        function selectSide(event, formType, side) {
             // Update button states
             const form = document.getElementById(formType + '-form');
             const buttons = form.querySelectorAll('.side-btn');

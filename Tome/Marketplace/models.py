@@ -108,13 +108,13 @@ class LimitOrder(models.Model):
     ]
     
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='limit_orders')
-    trading_pair = models.ForeignKey(TradingPair, on_delete=models.CASCADE, related_name='limit_orders')
-    side = models.CharField(max_length=4, choices=ORDER_SIDE_CHOICES)
-    price = models.DecimalField(max_digits=20, decimal_places=8)
+    trading_pair = models.ForeignKey(TradingPair, on_delete=models.CASCADE, related_name='limit_orders', db_index=True)
+    side = models.CharField(max_length=4, choices=ORDER_SIDE_CHOICES, db_index=True)
+    price = models.DecimalField(max_digits=20, decimal_places=8, db_index=True)
     quantity = models.DecimalField(max_digits=20, decimal_places=8)
     filled_quantity = models.DecimalField(max_digits=20, decimal_places=8, default=0)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
-    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
@@ -176,15 +176,15 @@ class StopLossOrder(models.Model):
 
 class OrderExecution(models.Model):
     """Record of an executed order (trade)"""
-    trading_pair = models.ForeignKey(TradingPair, on_delete=models.CASCADE, related_name='executions')
-    buyer = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='buy_executions')
-    seller = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='sell_executions')
+    trading_pair = models.ForeignKey(TradingPair, on_delete=models.CASCADE, related_name='executions', db_index=True)
+    buyer = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='buy_executions', db_index=True)
+    seller = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='sell_executions', db_index=True)
     price = models.DecimalField(max_digits=20, decimal_places=8)
     quantity = models.DecimalField(max_digits=20, decimal_places=8)
     buyer_order = models.ForeignKey(LimitOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name='buy_executions')
     seller_order = models.ForeignKey(LimitOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name='sell_executions')
     tx_hash = models.CharField(max_length=100, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     
     def __str__(self):
         return f"Trade: {self.quantity} {self.trading_pair.base_token} @ {self.price}"

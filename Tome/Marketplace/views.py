@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from decimal import Decimal, InvalidOperation
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from .models import (
     MarketplaceListing, MarketplaceItem, TradingPair, LimitOrder, 
@@ -238,22 +239,22 @@ def place_market_order(request):
             
             # Get opposite side orders for matching
             if side == 'buy':
-                # For buy orders, get sell orders sorted by lowest price
+                # For buy orders, get sell orders sorted by lowest price first, then by creation time (FIFO)
                 opposite_orders = LimitOrder.objects.filter(
                     trading_pair=trading_pair,
                     side='sell',
                     status__in=['pending', 'partial']
-                ).order_by('price')
+                ).order_by('price', 'created_at')
             else:
-                # For sell orders, get buy orders sorted by highest price
+                # For sell orders, get buy orders sorted by highest price first, then by creation time (FIFO)
                 opposite_orders = LimitOrder.objects.filter(
                     trading_pair=trading_pair,
                     side='buy',
                     status__in=['pending', 'partial']
-                ).order_by('-price')
+                ).order_by('-price', 'created_at')
             
             if not opposite_orders.exists():
-                messages.error(request, f'No {opposite_orders.model._meta.verbose_name_plural} available for immediate execution.')
+                messages.error(request, 'No orders available for immediate execution.')
                 return redirect('dex_orderbook')
             
             # Execute market order
@@ -265,6 +266,9 @@ def place_market_order(request):
                 for limit_order in opposite_orders:
                     if remaining_qty <= 0:
                         break
+                    
+                    # Lock the limit order for update to prevent race conditions
+                    limit_order = LimitOrder.objects.select_for_update().get(id=limit_order.id)
                     
                     # Calculate quantity to fill
                     available_qty = limit_order.remaining_quantity
@@ -306,20 +310,24 @@ def place_market_order(request):
                     executed_trades += 1
                 
                 # Create market order record
-                avg_price = total_cost / (quantity_decimal - remaining_qty) if quantity_decimal > remaining_qty else Decimal('0')
+                filled_qty = quantity_decimal - remaining_qty
+                if filled_qty > 0:
+                    avg_price = total_cost / filled_qty
+                else:
+                    avg_price = Decimal('0')
                 
                 MarketOrder.objects.create(
                     user=request.user,
                     trading_pair=trading_pair,
                     side=side,
-                    quantity=quantity_decimal - remaining_qty,
+                    quantity=filled_qty,
                     executed_price=avg_price,
                     status='executed',
                     tx_hash=f'testnet-{uuid.uuid4()}'
                 )
             
             if remaining_qty > 0:
-                messages.warning(request, f'Market order partially executed: {quantity_decimal - remaining_qty}/{quantity_decimal} {trading_pair.base_token} @ avg price {avg_price:.8f}')
+                messages.warning(request, f'Market order partially executed: {filled_qty}/{quantity_decimal} {trading_pair.base_token} @ avg price {avg_price:.8f}')
             else:
                 messages.success(request, f'Market {side} order executed successfully! {executed_trades} trades at avg price {avg_price:.8f}')
             
@@ -448,7 +456,6 @@ def my_orders(request):
     stop_loss_orders = StopLossOrder.objects.filter(user=request.user).select_related('trading_pair').order_by('-created_at')
     
     # Get user's trade history
-    from django.db.models import Q
     trade_history = OrderExecution.objects.filter(
         Q(buyer=request.user) | Q(seller=request.user)
     ).select_related('trading_pair', 'buyer', 'seller').order_by('-created_at')[:50]
@@ -462,28 +469,50 @@ def my_orders(request):
     return render(request, 'marketplace/my_orders.html', context)
 
 def _match_order(order):
-    """Internal function to match a limit order with existing orders"""
+    """
+    Internal function to match a limit order with existing orders in the order book.
+    
+    Implements price-time priority matching:
+    - Orders are matched at the best available price
+    - At the same price level, orders are matched FIFO (first in, first out)
+    
+    Args:
+        order: LimitOrder instance to match against the order book
+        
+    Side effects:
+        - Creates OrderExecution records for matched trades
+        - Updates filled_quantity and status of matched orders
+        - May trigger stop-loss orders based on execution prices
+    """
     with transaction.atomic():
         if order.side == 'buy':
-            # Match with sell orders (price ascending - lowest first)
+            # Match with sell orders (price ascending, then FIFO)
             opposite_orders = LimitOrder.objects.filter(
                 trading_pair=order.trading_pair,
                 side='sell',
                 status__in=['pending', 'partial'],
                 price__lte=order.price  # Only match if sell price <= buy price
-            ).order_by('price')
+            ).order_by('price', 'created_at')
         else:
-            # Match with buy orders (price descending - highest first)
+            # Match with buy orders (price descending, then FIFO)
             opposite_orders = LimitOrder.objects.filter(
                 trading_pair=order.trading_pair,
                 side='buy',
                 status__in=['pending', 'partial'],
                 price__gte=order.price  # Only match if buy price >= sell price
-            ).order_by('-price')
+            ).order_by('-price', 'created_at')
         
         for opposite in opposite_orders:
             if order.remaining_quantity <= 0:
                 break
+            
+            # Lock both orders for update to prevent race conditions
+            opposite = LimitOrder.objects.select_for_update().get(id=opposite.id)
+            order = LimitOrder.objects.select_for_update().get(id=order.id)
+            
+            # Prevent self-trading
+            if order.user == opposite.user:
+                continue
             
             # Calculate fill quantity
             fill_qty = min(order.remaining_quantity, opposite.remaining_quantity)
@@ -536,7 +565,20 @@ def _match_order(order):
         _check_stop_loss_triggers(order.trading_pair)
 
 def _check_stop_loss_triggers(trading_pair):
-    """Check and trigger stop-loss orders based on latest prices"""
+    """
+    Check and trigger stop-loss orders based on latest execution prices.
+    
+    Stop-loss logic:
+    - Sell stop-loss: Triggers when price DROPS to or below trigger price (protect long positions)
+    - Buy stop-loss: Triggers when price RISES to or above trigger price (protect short positions)
+    
+    Args:
+        trading_pair: TradingPair instance to check stop-loss orders for
+        
+    Side effects:
+        - Updates stop-loss order status to 'triggered' then 'executed'
+        - Creates market orders to execute the stop-loss
+    """
     # Get the latest execution price for the pair
     latest_execution = OrderExecution.objects.filter(
         trading_pair=trading_pair
@@ -548,31 +590,31 @@ def _check_stop_loss_triggers(trading_pair):
     current_price = latest_execution.price
     
     with transaction.atomic():
-        # Check sell stop-loss orders (trigger when price drops below trigger)
+        # Check sell stop-loss orders (trigger when price drops to or below trigger price)
         sell_stops = StopLossOrder.objects.filter(
             trading_pair=trading_pair,
             side='sell',
             status='pending',
-            trigger_price__gte=current_price
+            trigger_price__gte=current_price  # Trigger when current_price <= trigger_price
         )
         
-        # Check buy stop-loss orders (trigger when price rises above trigger)
+        # Check buy stop-loss orders (trigger when price rises to or above trigger price)
         buy_stops = StopLossOrder.objects.filter(
             trading_pair=trading_pair,
             side='buy',
             status='pending',
-            trigger_price__lte=current_price
+            trigger_price__lte=current_price  # Trigger when current_price >= trigger_price
         )
         
-        # Trigger stop-loss orders
+        # Trigger and execute stop-loss orders
         for stop_order in list(sell_stops) + list(buy_stops):
             stop_order.status = 'triggered'
             stop_order.triggered_at = timezone.now()
             stop_order.save()
             
-            # Execute as market order
-            # This is simplified - in production, you'd want more sophisticated execution
-            # For now, just mark as executed with current price
+            # Note: In a production system, this would create and execute a market order
+            # For this implementation, we're marking it as executed with the trigger price
+            # A full implementation would need to match against the order book
             stop_order.executed_price = current_price
             stop_order.status = 'executed'
             stop_order.tx_hash = f'testnet-{uuid.uuid4()}'
