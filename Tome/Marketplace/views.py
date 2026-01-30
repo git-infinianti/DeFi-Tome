@@ -19,6 +19,8 @@ def create_listing(request):
         description = request.POST.get('description', '').strip()
         price = request.POST.get('price', '').strip()
         quantity = request.POST.get('quantity', '').strip()
+        allow_swaps = request.POST.get('allow_swaps') == 'on'
+        preferred_swap_token = request.POST.get('preferred_swap_token', '').strip()
         
         # Validate required fields
         if not title or not description or not price or not quantity:
@@ -70,10 +72,22 @@ def create_listing(request):
             item=item,
             seller=request.user,
             price=price_decimal,
-            quantity_available=quantity_int
+            quantity_available=quantity_int,
+            allow_swaps=allow_swaps,
+            preferred_swap_token=preferred_swap_token
         )
         
         messages.success(request, 'Listing created successfully!')
         return redirect('marketplace')
     
     return render(request, 'marketplace/create_listing.html')
+
+@login_required
+def listing_detail(request, listing_id):
+    """Display detailed view of a marketplace listing"""
+    listing = MarketplaceListing.objects.select_related('item', 'seller').get(id=listing_id)
+    
+    context = {
+        'listing': listing,
+    }
+    return render(request, 'marketplace/listing_detail.html', context)
