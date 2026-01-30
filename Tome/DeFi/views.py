@@ -2,10 +2,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import F, Q, Avg, StdDev
+from django.db.models import F, Q
 from django.utils import timezone
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import uuid
 from .models import (
     TestnetConfig, LiquidityPool, LiquidityPosition, SwapTransaction, 
@@ -618,7 +618,7 @@ def submit_price(request):
             if price_usd <= 0:
                 messages.error(request, 'Price must be greater than zero.')
                 return redirect('submit_price')
-        except (ValueError, Exception):
+        except (ValueError, InvalidOperation):
             messages.error(request, 'Invalid price format.')
             return redirect('submit_price')
         
@@ -643,9 +643,10 @@ def submit_price(request):
             tx_hash=f'oracle-{uuid.uuid4()}'
         )
         
-        # Update source submission count
-        source.total_submissions += 1
-        source.save()
+        # Update source submission count atomically
+        PriceFeedSource.objects.filter(id=source.id).update(
+            total_submissions=F('total_submissions') + 1
+        )
         
         # Trigger price aggregation for this token
         _aggregate_price_feeds(token_symbol)
@@ -670,10 +671,10 @@ def price_history(request, token_symbol):
         token_symbol=token_symbol
     ).order_by('-timestamp')[:100]
     
-    # Get recent individual submissions
+    # Get recent individual submissions (with source info)
     recent_submissions = PriceFeedData.objects.filter(
         token_symbol=token_symbol
-    ).order_by('-timestamp')[:50]
+    ).select_related('source').order_by('-timestamp')[:50]
     
     context = {
         'token_symbol': token_symbol,
@@ -768,9 +769,14 @@ def _aggregate_price_feeds(token_symbol):
     num_sources = len(price_values)
     if num_sources > 1:
         std_dev = statistics.stdev(price_values)
-        # Confidence decreases with higher variance
-        variance_penalty = min(std_dev / float(avg_price) * 100, 50)  # Max 50% penalty
-        confidence = max(0, 100 - variance_penalty)
+        # Prevent division by zero
+        if float(avg_price) > 0:
+            # Confidence decreases with higher variance
+            # Max 50% penalty for high variance
+            variance_penalty = min(std_dev / float(avg_price) * 100, 50)
+            confidence = max(0, 100 - variance_penalty)
+        else:
+            confidence = 50
     else:
         confidence = 50  # Lower confidence with single source
     
