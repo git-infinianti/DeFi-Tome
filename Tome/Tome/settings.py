@@ -70,6 +70,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'Settings.context_processors.theme_context',
+                'Wallet.context_processors.wallet_balance',
             ],
         },
     },
@@ -124,6 +125,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Keep AutoField to match existing integer PKs
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 # Authentication settings
 LOGIN_URL = '/user/login/'

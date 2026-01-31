@@ -3,10 +3,12 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from decimal import Decimal
-from .models import UserWallet
+from .models import UserWallet, WalletAddress
 from .wallet import Wallet
 from .rpc import RPC
 from hdwallet.entropies import BIP39Entropy
+from hdwallet.derivations import BIP44Derivation, CHANGES
+from hdwallet import cryptocurrencies
 
 
 def _sync_user_evr_balance(user_wallet):
@@ -45,7 +47,7 @@ def _sync_user_evr_balance(user_wallet):
             return None
             
     except Exception as e:
-        print(f"Error syncing balance for user {user_wallet.user.username}: {str(e)}")
+        print(f"Error syncing balance for user_id {user_wallet.user_id}: {str(e)}")
         return None
 
 
@@ -84,7 +86,27 @@ def portfolio(request):
                 entropy=entropy,
                 passphrase=passphrase
             )
-            
+            # Import the wallet into the RPC and store address details
+            wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+            wallet = wallet_instance.get_wallet().from_derivation(
+                BIP44Derivation(
+                    cryptocurrencies.Evrmore.COIN_TYPE,
+                    0,
+                    CHANGES.EXTERNAL_CHAIN,
+                    0,
+                )
+            )
+            address = wallet.address()
+            wif = wallet.wif()
+            RPC.importprivkey(wif, str(user_wallet.entropy), False)
+            WalletAddress.objects.get_or_create(
+                wallet=user_wallet,
+                address=address,
+                wif=wif,
+                account=0,
+                index=0,
+                is_change=False,
+            )
             messages.success(request, f'Wallet "{wallet_name}" created successfully!')
             return redirect('portfolio')
     
@@ -105,7 +127,9 @@ def sync_balance(request):
     try:
         balance = _sync_user_evr_balance(user_wallet)
         if balance is not None:
-            messages.success(request, f'Balance synced successfully! Current balance: {balance} EVR')
+            # Convert from base unit (satoshis) to display unit by multiplying by 1e-8
+            display_balance = balance * Decimal('1e-8')
+            messages.success(request, f'Balance synced successfully! Current balance: {display_balance:.8f} EVR')
         else:
             messages.error(request, 'Failed to sync balance. Please try again.')
     except Exception as e:

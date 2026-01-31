@@ -81,6 +81,39 @@
             border-bottom: 1px solid var(--border-color);
         }
         
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .wallet-balance-display {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .balance-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        .balance-amount {
+            color: var(--accent-primary);
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
         .logo {
             font-size: 1.8rem;
             font-weight: bold;
@@ -324,15 +357,25 @@
 <body class="theme-{{ user_theme }}">
     <div class="container">
         <header>
-            <div class="logo">DeFi Tome</div>
-            <nav>
-                <a href="{% url 'home' %}">Home</a>
-                <a href="{% url 'explorer' %}">Explorer</a>
-                <a href="{% url 'listings' %}">Listings</a>
-                <a href="{% url 'portfolio' %}">Portfolio</a>
-                <a href="{% url 'api_docs' %}">Docs</a>
-                <a href="{% url 'settings' %}">Settings</a>
-            </nav>
+            <div class="header-left">
+                <div class="logo">DeFi Tome</div>
+            </div>
+            <div class="header-right">
+                <nav>
+                    <a href="{% url 'home' %}">Home</a>
+                    <a href="{% url 'explorer' %}">Explorer</a>
+                    <a href="{% url 'listings' %}">Listings</a>
+                    <a href="{% url 'portfolio' %}">Portfolio</a>
+                    <a href="{% url 'api_docs' %}">Docs</a>
+                    <a href="{% url 'settings' %}">Settings</a>
+                </nav>
+                {% if has_wallet and user_wallet_balance is not None %}
+                <div class="wallet-balance-display">
+                    <span class="balance-label">Balance:</span>
+                    <span class="balance-amount">{{ user_wallet_balance|floatformat:8 }} EVR</span>
+                </div>
+                {% endif %}
+            </div>
         </header>
         
         <h1 class="page-title">💼 Wallet Portfolio</h1>
@@ -381,13 +424,6 @@
                         <div class="management-card-icon">💸</div>
                         <h3>Send/Receive</h3>
                         <p>Transfer assets to and from your wallet</p>
-                    </div>
-                </a>
-                <a href="{% url 'sync_balance' %}" class="management-card-link">
-                    <div class="management-card">
-                        <div class="management-card-icon">🔄</div>
-                        <h3>Sync Balance</h3>
-                        <p>Update your wallet balance from blockchain</p>
                     </div>
                 </a>
                 <div class="management-card">

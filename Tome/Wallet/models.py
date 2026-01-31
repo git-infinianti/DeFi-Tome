@@ -13,7 +13,7 @@ class UserWallet(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"UserWallet(name={self.name}, user={self.user.username})"
+        return f"UserWallet(name={self.name}, user_id={self.user_id})"
 
 class WalletAddress(models.Model):
     wallet = models.ForeignKey(UserWallet, on_delete=models.CASCADE, related_name='addresses')

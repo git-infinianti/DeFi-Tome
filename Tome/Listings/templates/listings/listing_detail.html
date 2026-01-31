@@ -33,6 +33,39 @@
             border-bottom: 1px solid rgba(148, 163, 184, 0.2);
         }
         
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .wallet-balance-display {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .balance-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        
+        .balance-amount {
+            color: #3b82f6;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
         .logo {
             font-size: 1.8rem;
             font-weight: bold;
@@ -171,14 +204,24 @@
 <body>
     <div class="container">
         <header>
-            <div class="logo">DeFi Tome</div>
-            <nav>
-                <a href="{% url 'listings' %}">Listings</a>
-                <a href="{% url 'dex_orderbook' %}">DEX</a>
-                <a href="{% url 'lending_home' %}">Lending</a>
-                <a href="{% url 'my_swap_offers' %}">My Offers</a>
-                <a href="{% url 'available_swap_offers' %}">Available Swaps</a>
-            </nav>
+            <div class="header-left">
+                <div class="logo">DeFi Tome</div>
+            </div>
+            <div class="header-right">
+                <nav>
+                    <a href="{% url 'listings' %}">Listings</a>
+                    <a href="{% url 'dex_orderbook' %}">DEX</a>
+                    <a href="{% url 'lending_home' %}">Lending</a>
+                    <a href="{% url 'my_swap_offers' %}">My Offers</a>
+                    <a href="{% url 'available_swap_offers' %}">Available Swaps</a>
+                </nav>
+                {% if has_wallet and user_wallet_balance is not None %}
+                <div class="wallet-balance-display">
+                    <span class="balance-label">Balance:</span>
+                    <span class="balance-amount">{{ user_wallet_balance|floatformat:8 }} EVR</span>
+                </div>
+                {% endif %}
+            </div>
         </header>
         
         <div class="listing-detail">
