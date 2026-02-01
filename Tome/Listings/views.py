@@ -279,6 +279,7 @@ def create_listing(request):
     from DeFi.models import SwapOffer
     from django.utils import timezone
     from datetime import timedelta
+    from django.contrib.auth.models import User
     
     asset_balances, balance_error = _get_user_asset_balances(request.user)
     asset_options = [
@@ -289,6 +290,9 @@ def create_listing(request):
         }
         for symbol, balance in sorted(asset_balances.items(), key=lambda item: item[0])
     ]
+    
+    # Get all users except the current user for counterparty selection
+    all_users = User.objects.exclude(id=request.user.id).filter(is_active=True).order_by('username')
 
     if balance_error == 'no_wallet':
         messages.error(request, 'No wallet found. Please create a wallet before listing assets.')
@@ -317,7 +321,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
         if not token_offered.isalnum() or not preferred_token.isalnum():
@@ -325,7 +329,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
         # Validate tokens are different
@@ -334,7 +338,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
         # Validate required fields
@@ -343,7 +347,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
         # Validate field lengths
@@ -352,7 +356,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
         if len(token_offered) > 10 or len(preferred_token) > 10:
@@ -360,7 +364,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
 
         if not asset_balances:
@@ -368,7 +372,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
 
         if token_offered not in asset_balances:
@@ -376,7 +380,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
 
         if selected_balance is None or selected_balance <= 0:
@@ -384,7 +388,7 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
         # Validate numeric fields
@@ -398,7 +402,7 @@ def create_listing(request):
                 return render(request, 'listings/create_listing.html', {
                     'title': title, 'description': description, 'price': price, 'quantity': quantity,
                     'token_offered': token_offered, 'preferred_token': preferred_token,
-                    'asset_options': asset_options, 'asset_balances': asset_balances
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
                 })
             
             if quantity_decimal <= 0:
@@ -406,7 +410,7 @@ def create_listing(request):
                 return render(request, 'listings/create_listing.html', {
                     'title': title, 'description': description, 'price': price, 'quantity': quantity,
                     'token_offered': token_offered, 'preferred_token': preferred_token,
-                    'asset_options': asset_options, 'asset_balances': asset_balances
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
                 })
             
             if expiry_days_int < 1 or expiry_days_int > 365:
@@ -414,14 +418,14 @@ def create_listing(request):
                 return render(request, 'listings/create_listing.html', {
                     'title': title, 'description': description, 'price': price, 'quantity': quantity,
                     'token_offered': token_offered, 'preferred_token': preferred_token,
-                    'asset_options': asset_options, 'asset_balances': asset_balances
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
                 })
         except (ValueError, InvalidOperation):
             messages.error(request, 'Invalid price, quantity, or expiry format.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
         # Get counterparty if specified
@@ -435,14 +439,14 @@ def create_listing(request):
                     return render(request, 'listings/create_listing.html', {
                         'title': title, 'description': description, 'price': price, 'quantity': quantity,
                         'token_offered': token_offered, 'preferred_token': preferred_token,
-                        'asset_options': asset_options, 'asset_balances': asset_balances
+                        'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
                     })
             except User.DoesNotExist:
                 messages.error(request, f'User {counterparty_username} not found.')
                 return render(request, 'listings/create_listing.html', {
                     'title': title, 'description': description, 'price': price, 'quantity': quantity,
                     'token_offered': token_offered, 'preferred_token': preferred_token,
-                    'asset_options': asset_options, 'asset_balances': asset_balances
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
                 })
         
         # Create the listing item and listing with swap offer in atomic transaction
@@ -489,12 +493,13 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
     
     return render(request, 'listings/create_listing.html', {
         'asset_options': asset_options,
-        'asset_balances': asset_balances
+        'asset_balances': asset_balances,
+        'all_users': all_users
     })
 
 @login_required
