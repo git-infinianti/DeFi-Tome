@@ -15,7 +15,7 @@ from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+MARKET_SYNC_ADDRESS = config('MARKET_SYNC_ADDRESS', default='EL5MFdaF8msRaUEDu9mxSNniPSswNmNRgq')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
