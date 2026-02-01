@@ -9,7 +9,7 @@ The listings will be mainly focused on listing other coins to buy/sell/trade usi
 class ListingItem(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
-    quantity = models.PositiveIntegerField(default=1)
+    quantity = models.DecimalField(max_digits=20, decimal_places=8, default=1)
     individual_price = models.DecimalField(max_digits=20, decimal_places=8)
     total_price = models.DecimalField(max_digits=20, decimal_places=8)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -38,7 +38,7 @@ class ListingTransaction(models.Model):
     item = models.ForeignKey(ListingItem, on_delete=models.CASCADE, related_name='transactions')
     buyer = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='purchases')
     seller = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='sales')
-    quantity = models.PositiveIntegerField(default=1)
+    quantity = models.DecimalField(max_digits=20, decimal_places=8, default=1)
     individual_price = models.DecimalField(max_digits=20, decimal_places=8)
     total_price = models.DecimalField(max_digits=20, decimal_places=8)
     transaction_date = models.DateTimeField(auto_now_add=True)
@@ -62,7 +62,7 @@ class Listing(models.Model):
     item = models.ForeignKey(ListingItem, on_delete=models.CASCADE, related_name='listings')
     seller = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='listings')
     price = models.DecimalField(max_digits=20, decimal_places=8)
-    quantity_available = models.PositiveIntegerField(default=1)
+    quantity_available = models.DecimalField(max_digits=20, decimal_places=8, default=1)
     listing_date = models.DateTimeField(auto_now_add=True)
     
     # P2P swap fields - MANDATORY

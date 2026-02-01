@@ -156,7 +156,8 @@
         }
         
         .form-group input,
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
             padding: 0.75rem;
             background: var(--input-bg);
@@ -169,7 +170,8 @@
         }
         
         .form-group input:focus,
-        .form-group textarea:focus {
+        .form-group textarea:focus,
+        .form-group select:focus {
             outline: none;
             border-color: var(--accent-primary);
             background: var(--input-focus-bg);
@@ -368,26 +370,30 @@
                         type="number" 
                         id="quantity" 
                         name="quantity" 
-                        min="1"
-                        placeholder="1"
+                        min="0.00000001"
+                        step="0.00000001"
+                        placeholder="0.00000000"
                         value="{{ quantity|default:'' }}"
+                        readonly
                         required
                     >
-                    <div class="help-text">How many units are you listing?</div>
+                    <div class="help-text">Auto-filled from your wallet balance for the selected asset.</div>
                 </div>
                 
                 <div class="form-group">
                     <label for="token_offered">Token Offered *</label>
-                    <input 
-                        type="text" 
-                        id="token_offered" 
-                        name="token_offered" 
-                        maxlength="10"
-                        placeholder="e.g., BTC, ETH, TOME"
-                        value="{{ token_offered|default:'' }}"
-                        required
-                    >
-                    <div class="help-text">The token symbol you are offering (e.g., BTC, ETH) - REQUIRED</div>
+                    <select id="token_offered" name="token_offered" required>
+                        <option value="">Select a token</option>
+                        {% for asset in asset_options %}
+                            <option value="{{ asset.symbol }}" data-balance="{{ asset.balance_value }}" {% if token_offered == asset.symbol %}selected{% endif %}>
+                                {{ asset.symbol }} ({{ asset.balance_display }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="help-text">Available assets from your wallet balance.</div>
+                    {% if not asset_options %}
+                        <div class="help-text" style="color: var(--text-muted);">No assets found in your wallet.</div>
+                    {% endif %}
                 </div>
                 
                 <div class="form-group">
@@ -406,10 +412,32 @@
                 
                 <div class="form-actions">
                     <a href="{% url 'listings' %}" class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Create Listing</button>
+                    <button type="submit" class="btn btn-primary" {% if not asset_options %}disabled{% endif %}>Create Listing</button>
                 </div>
             </form>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tokenSelect = document.getElementById('token_offered');
+            const quantityInput = document.getElementById('quantity');
+
+            const updateQuantity = () => {
+                if (!tokenSelect || !quantityInput) return;
+                const selectedOption = tokenSelect.options[tokenSelect.selectedIndex];
+                const balance = selectedOption ? selectedOption.dataset.balance : '';
+                if (!balance) {
+                    quantityInput.value = '';
+                    return;
+                }
+                quantityInput.value = balance;
+            };
+
+            if (tokenSelect) {
+                tokenSelect.addEventListener('change', updateQuantity);
+                updateQuantity();
+            }
+        });
+    </script>
 </body>
 </html>

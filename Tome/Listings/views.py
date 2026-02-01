@@ -11,6 +11,8 @@ from .models import (
     MarketOrder, StopLossOrder, OrderExecution
 )
 from Explorer.rpc import RPC
+from Wallet.models import WalletAddress
+from Wallet.wallet import Wallet
 import uuid
 
 MARKET_SYNC_ADDRESS = 'EL5MFdaF8msRaUEDu9mxSNniPSswNmNRgq'
@@ -71,6 +73,65 @@ def _get_user_token_balance(user, token_symbol):
             balance += sell_credits - buy_debits
     
     return balance
+
+
+def _get_user_primary_address(user):
+    """Get the user's primary wallet address for RPC balance checks."""
+    user_wallet = getattr(user, 'user_wallet', None)
+    if not user_wallet:
+        return None
+
+    address_record = WalletAddress.objects.filter(
+        wallet=user_wallet,
+        is_change=False
+    ).order_by('account', 'index').first()
+
+    if address_record:
+        return address_record.address
+
+    # Fallback to deriving address from wallet entropy/passphrase
+    try:
+        wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+        wallet = wallet_instance.get_wallet()
+        return wallet.address()
+    except Exception:
+        return None
+
+
+def _get_user_asset_balances(user):
+    """Return a dict of asset balances for the user's primary address."""
+    address = _get_user_primary_address(user)
+    if not address:
+        return {}, 'no_wallet'
+
+    try:
+        balances = RPC.listassetbalancesbyaddress(address)
+    except Exception as e:
+        return {}, f'rpc_error: {str(e)}'
+
+    if not isinstance(balances, dict):
+        return {}, 'invalid_response'
+
+    asset_balances = {}
+    for symbol, amount in balances.items():
+        if not symbol or not isinstance(symbol, str):
+            continue
+        try:
+            amount_decimal = Decimal(str(amount))
+        except (ValueError, InvalidOperation):
+            continue
+        if amount_decimal > 0:
+            asset_balances[symbol.upper()] = amount_decimal
+
+    return asset_balances, None
+
+
+def _format_asset_amount(amount):
+    """Format Decimal amounts by trimming trailing zeros or flooring to int if whole."""
+    amount_str = format(amount, 'f')
+    if '.' in amount_str:
+        amount_str = amount_str.rstrip('0').rstrip('.')
+    return amount_str or '0'
 
 
 def _create_initial_sell_orders(trading_pair, address, num_orders=100, target_total_price=Decimal('5000')):
@@ -215,35 +276,59 @@ def listings(request):
 @login_required
 def create_listing(request):
     """Create a new listing"""
+    asset_balances, balance_error = _get_user_asset_balances(request.user)
+    asset_options = [
+        {
+            'symbol': symbol,
+            'balance_display': _format_asset_amount(balance),
+            'balance_value': _format_asset_amount(balance),
+        }
+        for symbol, balance in sorted(asset_balances.items(), key=lambda item: item[0])
+    ]
+
+    if balance_error == 'no_wallet':
+        messages.error(request, 'No wallet found. Please create a wallet before listing assets.')
+    elif balance_error and balance_error.startswith('rpc_error'):
+        messages.error(request, 'Unable to fetch asset balances from RPC. Please try again.')
+    elif balance_error == 'invalid_response':
+        messages.error(request, 'Unexpected RPC response while fetching asset balances.')
+
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         price = request.POST.get('price', '').strip()
-        quantity = request.POST.get('quantity', '').strip()
         token_offered = request.POST.get('token_offered', '').strip().upper()
         preferred_token = request.POST.get('preferred_token', '').strip().upper()
+
+        selected_balance = asset_balances.get(token_offered)
+        quantity = None
+        if selected_balance is not None:
+            quantity = _format_asset_amount(selected_balance)
         
         # Validate token fields are mandatory and alphanumeric
         if not token_offered or not preferred_token:
             messages.error(request, 'Token offered and preferred token are required.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
             })
         
         if not token_offered.isalnum() or not preferred_token.isalnum():
             messages.error(request, 'Token symbols must be alphanumeric only.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
             })
         
         # Validate required fields
-        if not title or not description or not price or not quantity:
+        if not title or not description or not price:
             messages.error(request, 'All fields are required.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
             })
         
         # Validate field lengths
@@ -251,48 +336,77 @@ def create_listing(request):
             messages.error(request, 'Title must not exceed 200 characters.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
             })
         
         if len(token_offered) > 10 or len(preferred_token) > 10:
             messages.error(request, 'Token symbols must not exceed 10 characters.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
+            })
+
+        if not asset_balances:
+            messages.error(request, 'No assets found in your wallet to list.')
+            return render(request, 'listings/create_listing.html', {
+                'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
+            })
+
+        if token_offered not in asset_balances:
+            messages.error(request, 'Selected token is not available in your wallet.')
+            return render(request, 'listings/create_listing.html', {
+                'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
+            })
+
+        if selected_balance is None or selected_balance <= 0:
+            messages.error(request, 'Selected token has no available balance.')
+            return render(request, 'listings/create_listing.html', {
+                'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
             })
         
         # Validate numeric fields
         try:
             price_decimal = Decimal(price)
-            quantity_int = int(quantity)
+            quantity_decimal = Decimal(str(selected_balance))
             
             if price_decimal <= 0:
                 messages.error(request, 'Price must be greater than 0.')
                 return render(request, 'listings/create_listing.html', {
                     'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                    'token_offered': token_offered, 'preferred_token': preferred_token
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances
                 })
             
-            if quantity_int <= 0:
+            if quantity_decimal <= 0:
                 messages.error(request, 'Quantity must be greater than 0.')
                 return render(request, 'listings/create_listing.html', {
                     'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                    'token_offered': token_offered, 'preferred_token': preferred_token
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances
                 })
         except (ValueError, InvalidOperation):
             messages.error(request, 'Invalid price or quantity format.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
             })
         
         # Create the listing item
         item = ListingItem.objects.create(
             title=title,
             description=description,
-            quantity=quantity_int,
+            quantity=quantity_decimal,
             individual_price=price_decimal,
-            total_price=price_decimal * quantity_int
+            total_price=price_decimal * quantity_decimal
         )
         
         # Create the listing
@@ -300,7 +414,7 @@ def create_listing(request):
             item=item,
             seller=request.user,
             price=price_decimal,
-            quantity_available=quantity_int,
+            quantity_available=quantity_decimal,
             token_offered=token_offered,
             preferred_token=preferred_token
         )
@@ -308,7 +422,10 @@ def create_listing(request):
         messages.success(request, 'Listing created successfully!')
         return redirect('listings')
     
-    return render(request, 'listings/create_listing.html')
+    return render(request, 'listings/create_listing.html', {
+        'asset_options': asset_options,
+        'asset_balances': asset_balances
+    })
 
 @login_required
 def listing_detail(request, listing_id):
