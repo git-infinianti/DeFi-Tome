@@ -1298,6 +1298,18 @@ def markets_view(request):
 @login_required
 def create_market(request):
     """Allow users to create new trading pairs/markets"""
+    # Fetch user's available assets (excluding EVR)
+    user_assets, error = _get_user_asset_balances(request.user)
+    available_base_tokens = [
+        symbol for symbol in sorted(user_assets.keys()) 
+        if symbol != 'EVR'
+    ]
+    # Quote tokens: EVR plus any other assets the user has
+    available_quote_tokens = ['EVR'] + [
+        symbol for symbol in sorted(user_assets.keys()) 
+        if symbol != 'EVR'
+    ]
+    
     if request.method == 'POST':
         base_token = request.POST.get('base_token', '').strip().upper()
         quote_token = request.POST.get('quote_token', '').strip().upper()
@@ -1307,7 +1319,21 @@ def create_market(request):
             messages.error(request, 'Both base token and quote token are required.')
             return render(request, 'listings/create_market.html', {
                 'base_token': base_token,
-                'quote_token': quote_token
+                'quote_token': quote_token,
+                'available_base_tokens': available_base_tokens,
+                'available_quote_tokens': available_quote_tokens,
+                'user_assets': user_assets
+            })
+        
+        # Validate base token is not EVR
+        if base_token == 'EVR':
+            messages.error(request, 'Base token cannot be EVR. EVR is reserved as the quote token.')
+            return render(request, 'listings/create_market.html', {
+                'base_token': base_token,
+                'quote_token': quote_token,
+                'available_base_tokens': available_base_tokens,
+                'available_quote_tokens': available_quote_tokens,
+                'user_assets': user_assets
             })
         
         # Validate alphanumeric
@@ -1315,7 +1341,10 @@ def create_market(request):
             messages.error(request, 'Token symbols must be alphanumeric only.')
             return render(request, 'listings/create_market.html', {
                 'base_token': base_token,
-                'quote_token': quote_token
+                'quote_token': quote_token,
+                'available_base_tokens': available_base_tokens,
+                'available_quote_tokens': available_quote_tokens,
+                'user_assets': user_assets
             })
         
         # Validate they're not the same
@@ -1323,7 +1352,10 @@ def create_market(request):
             messages.error(request, 'Base token and quote token must be different.')
             return render(request, 'listings/create_market.html', {
                 'base_token': base_token,
-                'quote_token': quote_token
+                'quote_token': quote_token,
+                'available_base_tokens': available_base_tokens,
+                'available_quote_tokens': available_quote_tokens,
+                'user_assets': user_assets
             })
         
         # Check if pair already exists
@@ -1331,7 +1363,10 @@ def create_market(request):
             messages.error(request, f'Trading pair {base_token}/{quote_token} already exists.')
             return render(request, 'listings/create_market.html', {
                 'base_token': base_token,
-                'quote_token': quote_token
+                'quote_token': quote_token,
+                'available_base_tokens': available_base_tokens,
+                'available_quote_tokens': available_quote_tokens,
+                'user_assets': user_assets
             })
         
         # Check if reverse pair exists
@@ -1349,4 +1384,8 @@ def create_market(request):
         messages.success(request, f'Market {base_token}/{quote_token} created successfully!')
         return redirect('markets')
     
-    return render(request, 'listings/create_market.html')
+    return render(request, 'listings/create_market.html', {
+        'available_base_tokens': available_base_tokens,
+        'available_quote_tokens': available_quote_tokens,
+        'user_assets': user_assets
+    })

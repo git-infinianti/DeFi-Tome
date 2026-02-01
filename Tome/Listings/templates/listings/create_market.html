@@ -155,7 +155,8 @@
             font-weight: 500;
         }
         
-        .form-group input {
+        .form-group input,
+        .form-group select {
             width: 100%;
             padding: 0.75rem;
             background: var(--input-bg);
@@ -167,7 +168,8 @@
             transition: border-color 0.3s, background 0.3s;
         }
         
-        .form-group input:focus {
+        .form-group input:focus,
+        .form-group select:focus {
             outline: none;
             border-color: var(--accent-primary);
             background: var(--input-focus-bg);
@@ -175,6 +177,27 @@
         
         .form-group input::placeholder {
             color: var(--text-muted);
+        }
+        
+        .form-group select option {
+            background: var(--card-bg);
+            color: var(--text-primary);
+        }
+        
+        .no-assets-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            color: #fcd34d;
+            font-size: 0.9rem;
+        }
+        
+        .asset-balance-hint {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
         }
         
         .form-group .help-text {
@@ -383,8 +406,15 @@
                 <li>Quote token is the pricing currency (e.g., USDT in BTC/USDT)</li>
                 <li>Token symbols must be alphanumeric (2-10 characters)</li>
                 <li>Both tokens must be different</li>
+                <li>Base token cannot be EVR</li>
             </ul>
         </div>
+        
+        {% if not available_base_tokens %}
+        <div class="no-assets-warning">
+            ⚠️ You don't have any assets in your wallet to select as a base token. Please acquire some assets first.
+        </div>
+        {% endif %}
         
         <div class="form-container">
         <form method="POST" action="{% url 'create_market' %}">
@@ -403,6 +433,22 @@
             
             <div class="form-group">
                 <label for="base_token">Base Token Symbol *</label>
+                {% if available_base_tokens %}
+                <select 
+                    id="base_token" 
+                    name="base_token" 
+                    oninput="updatePairPreview()"
+                    required
+                >
+                    <option value="">-- Select a base token from your assets --</option>
+                    {% for token in available_base_tokens %}
+                    <option value="{{ token }}" {% if base_token == token %}selected{% endif %}>
+                        {{ token }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="asset-balance-hint">Select from your available assets (EVR cannot be used as base token)</div>
+                {% else %}
                 <input 
                     type="text" 
                     id="base_token" 
@@ -411,24 +457,28 @@
                     placeholder="e.g., BTC, ETH, XNT"
                     maxlength="10"
                     oninput="updatePairPreview()"
-                    required
+                    disabled
                 >
-                <div class="help-text">The token being traded (left side of the pair)</div>
+                <div class="asset-balance-hint">You need assets in your wallet first</div>
+                {% endif %}
             </div>
             
             <div class="form-group">
                 <label for="quote_token">Quote Token Symbol *</label>
-                <input 
-                    type="text" 
+                <select 
                     id="quote_token" 
                     name="quote_token" 
-                    value="{{ quote_token }}"
-                    placeholder="e.g., USDT, BTC, SAFE"
-                    maxlength="10"
                     oninput="updatePairPreview()"
                     required
                 >
-                <div class="help-text">The pricing token (right side of the pair)</div>
+                    <option value="">-- Select a quote token --</option>
+                    {% for token in available_quote_tokens %}
+                    <option value="{{ token }}" {% if quote_token == token or quote_token == '' and token == 'EVR' %}selected{% endif %}>
+                        {{ token }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="asset-balance-hint">Select the pricing token (EVR is the recommended default)</div>
             </div>
             
             <div class="btn-group">
