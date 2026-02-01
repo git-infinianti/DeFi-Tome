@@ -123,6 +123,7 @@
             border-radius: 4px;
             font-size: 0.85rem;
             transition: background 0.2s;
+            cursor: pointer;
         }
         
         .price-level:hover {
@@ -532,8 +533,8 @@
             <!-- Limit Order Tab -->
             <div id="limit" class="tab-content active">
                 <div class="side-selector">
-                    <button class="side-btn buy active" onclick="setSide('buy')">BUY</button>
-                    <button class="side-btn sell" onclick="setSide('sell')">SELL</button>
+                    <button class="side-btn buy active" onclick="setSide('buy', this)">BUY</button>
+                    <button class="side-btn sell" onclick="setSide('sell', this)">SELL</button>
                 </div>
 
                 <form method="POST" action="{% url 'place_limit_order' %}" id="limit-form">
@@ -556,15 +557,15 @@
                         <input type="number" class="form-input" id="total-cost" placeholder="0.00" readonly>
                     </div>
 
-                    <button type="submit" class="order-btn buy" id="limit-btn">Place Limit Order</button>
+                    <button type="submit" class="order-btn buy" id="limit-btn">Buy</button>
                 </form>
             </div>
 
             <!-- Market Order Tab -->
             <div id="market" class="tab-content">
                 <div class="side-selector">
-                    <button class="side-btn buy active" onclick="setMarketSide('buy')">BUY</button>
-                    <button class="side-btn sell" onclick="setMarketSide('sell')">SELL</button>
+                    <button class="side-btn buy active" onclick="setMarketSide('buy', this)">BUY</button>
+                    <button class="side-btn sell" onclick="setMarketSide('sell', this)">SELL</button>
                 </div>
 
                 <form method="POST" action="{% url 'place_market_order' %}" id="market-form">
@@ -584,8 +585,8 @@
             <!-- Stop Loss Tab -->
             <div id="stop" class="tab-content">
                 <div class="side-selector">
-                    <button class="side-btn sell active" onclick="setStopSide('sell')">SELL</button>
-                    <button class="side-btn buy" onclick="setStopSide('buy')">BUY</button>
+                    <button class="side-btn sell active" onclick="setStopSide('sell', this)">SELL</button>
+                    <button class="side-btn buy" onclick="setStopSide('buy', this)">BUY</button>
                 </div>
 
                 <form method="POST" action="{% url 'place_stop_loss_order' %}" id="stop-form">
@@ -690,7 +691,7 @@
             
             const sellHtml = `
                 {% for order in sell_orders %}
-                <div class="price-level">
+                <div class="price-level" data-price="{{ order.price }}" onclick="fillPrice({{ order.price }})">
                     <div class="price-sell">{{ order.price|floatformat:8 }}</div>
                     <div class="price-amount">{{ order.remaining_quantity|floatformat:4 }}</div>
                 </div>
@@ -699,7 +700,7 @@
             
             const buyHtml = `
                 {% for order in buy_orders %}
-                <div class="price-level">
+                <div class="price-level" data-price="{{ order.price }}" onclick="fillPrice({{ order.price }})">
                     <div class="price-buy">{{ order.price|floatformat:8 }}</div>
                     <div class="price-amount">{{ order.remaining_quantity|floatformat:4 }}</div>
                 </div>
@@ -710,20 +711,41 @@
             if (buyHtml.trim()) buyOrders.innerHTML = buyHtml;
         }
 
+        // Fill price from order book click
+        function fillPrice(price) {
+            const priceInput = document.querySelector('#limit-form input[name="price"]');
+            if (priceInput) {
+                priceInput.value = price;
+                // Trigger change event to recalculate total
+                priceInput.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // Switch to limit tab if not already there
+                const limitTab = document.getElementById('limit');
+                if (!limitTab.classList.contains('active')) {
+                    switchTab('limit');
+                }
+            }
+        }
+
         // Tab switching
         function switchTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             
             document.getElementById(tab).classList.add('active');
-            event.target.classList.add('active');
+            // Activate the corresponding tab button
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabIndex = ['limit', 'market', 'stop'].indexOf(tab);
+            if (tabIndex >= 0 && tabBtns[tabIndex]) {
+                tabBtns[tabIndex].classList.add('active');
+            }
         }
 
         // Side selection
-        function setSide(side) {
+        function setSide(side, clickedBtn) {
             document.getElementById('order-side').value = side;
             document.querySelectorAll('#limit .side-btn').forEach(el => el.classList.remove('active'));
-            event.target.classList.add('active');
+            if (clickedBtn) clickedBtn.classList.add('active');
             
             const btn = document.getElementById('limit-btn');
             if (side === 'buy') {
@@ -737,16 +759,16 @@
             }
         }
 
-        function setMarketSide(side) {
+        function setMarketSide(side, clickedBtn) {
             document.getElementById('market-side').value = side;
             document.querySelectorAll('#market .side-btn').forEach(el => el.classList.remove('active'));
-            event.target.classList.add('active');
+            if (clickedBtn) clickedBtn.classList.add('active');
         }
 
-        function setStopSide(side) {
+        function setStopSide(side, clickedBtn) {
             document.getElementById('stop-side').value = side;
             document.querySelectorAll('#stop .side-btn').forEach(el => el.classList.remove('active'));
-            event.target.classList.add('active');
+            if (clickedBtn) clickedBtn.classList.add('active');
         }
 
         // Calculate total on input change

@@ -350,12 +350,12 @@ def dex_orderbook(request):
             status__in=['pending', 'partial']
         ).order_by('-price')[:20]
         
-        # Get active sell orders (sorted by price ascending - lowest first)
+        # Get active sell orders (sorted by price descending - highest first)
         sell_orders = LimitOrder.objects.filter(
             trading_pair=selected_pair,
             side='sell',
             status__in=['pending', 'partial']
-        ).order_by('price')[:20]
+        ).order_by('-price')[80:]
         
         # Get recent trades
         recent_trades = OrderExecution.objects.filter(
