@@ -277,8 +277,254 @@
         
         <div class="page-title">
             <h1>API Documentation</h1>
-            <p>DeFi Tome RESTful API - Commands and Endpoints</p>
-            <p style="margin-top: 0.5rem;"><span class="status-badge status-planned">Coming Soon</span></p>
+            <p>DeFi Tome RESTful API - Solidity Contracts & Evrmore Blockchain</p>
+        </div>
+        
+        <div class="api-section">
+            <h2>📋 API Information</h2>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/info/</span>
+                </div>
+                <p class="endpoint-description">
+                    Get general API information, version, and blockchain status.
+                </p>
+                <div class="code-block">
+                    <pre><code>{
+  "success": true,
+  "api_version": "1.0.0",
+  "blockchain": {
+    "chain": "main",
+    "blocks": 123456,
+    "difficulty": 1234.56
+  },
+  "endpoints": {
+    "contracts": "/api/v1/contracts/",
+    "assets": "/api/v1/assets/",
+    "blockchain": "/api/v1/blockchain/",
+    "messages": "/api/v1/messages/"
+  }
+}</code></pre>
+                </div>
+            </div>
+        </div>
+        
+        <div class="api-section">
+            <h2>📜 Solidity Smart Contracts</h2>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/contracts/</span>
+                </div>
+                <p class="endpoint-description">
+                    List all deployed Solidity contracts (stateless contracts on Evrmore).
+                </p>
+                <div class="param-list">
+                    <h4>Query Parameters:</h4>
+                    <div class="param-item">
+                        <span class="param-name">page</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">Page number for pagination (default: 1)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">per_page</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">Results per page (default: 20)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">deployer</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">Filter by deployer user ID</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/contracts/</span>
+                </div>
+                <p class="endpoint-description">
+                    Deploy a new Solidity contract. Requires authentication.
+                </p>
+                <div class="param-list">
+                    <h4>Request Body:</h4>
+                    <div class="param-item">
+                        <span class="param-name">name</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Contract name (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">contract_address</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Evrmore asset name or identifier (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">source_code</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Solidity source code (optional)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">abi</span>
+                        <span class="param-type">array</span>
+                        <span class="param-desc">Contract ABI JSON (optional)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">description</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Contract description (optional)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/contracts/{contract_id}/</span>
+                </div>
+                <p class="endpoint-description">
+                    Get detailed information about a specific contract including source code, ABI, and recent interactions.
+                </p>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/contracts/{contract_id}/interact/</span>
+                </div>
+                <p class="endpoint-description">
+                    Interact with a deployed contract by calling a function. Requires authentication.
+                </p>
+                <div class="param-list">
+                    <h4>Request Body:</h4>
+                    <div class="param-item">
+                        <span class="param-name">function_name</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Name of function to call (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">parameters</span>
+                        <span class="param-type">object</span>
+                        <span class="param-desc">Function parameters as key-value pairs</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="api-section">
+            <h2>🪙 Evrmore Assets</h2>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/assets/</span>
+                </div>
+                <p class="endpoint-description">
+                    List all assets on the Evrmore blockchain.
+                </p>
+                <div class="param-list">
+                    <h4>Query Parameters:</h4>
+                    <div class="param-item">
+                        <span class="param-name">asset</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Asset name filter (default: "*" for all)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">verbose</span>
+                        <span class="param-type">boolean</span>
+                        <span class="param-desc">Include detailed info (default: false)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">count</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">Results per page (default: 50)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/assets/{asset_name}/</span>
+                </div>
+                <p class="endpoint-description">
+                    Get detailed information about a specific asset.
+                </p>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/assets/issue/</span>
+                </div>
+                <p class="endpoint-description">
+                    Issue a new asset on the Evrmore blockchain. Requires authentication.
+                </p>
+                <div class="param-list">
+                    <h4>Request Body:</h4>
+                    <div class="param-item">
+                        <span class="param-name">asset_name</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Name of the asset (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">qty</span>
+                        <span class="param-type">number</span>
+                        <span class="param-desc">Quantity to issue (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">units</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">Divisibility 0-8 (default: 0)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">reissuable</span>
+                        <span class="param-type">boolean</span>
+                        <span class="param-desc">Can be reissued (default: true)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">ipfs_hash</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">IPFS hash for metadata (optional)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/assets/transfer/</span>
+                </div>
+                <p class="endpoint-description">
+                    Transfer an asset to another address. Requires authentication.
+                </p>
+                <div class="param-list">
+                    <h4>Request Body:</h4>
+                    <div class="param-item">
+                        <span class="param-name">asset_name</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Name of the asset (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">qty</span>
+                        <span class="param-type">number</span>
+                        <span class="param-desc">Quantity to transfer (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">to_address</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Recipient address (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">message</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Optional message (optional)</span>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div class="api-section">
@@ -287,332 +533,134 @@
             <div class="api-endpoint">
                 <div class="endpoint-header">
                     <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/blockchain/balance/{address}</span>
+                    <span class="endpoint-path">/api/v1/blockchain/info/</span>
                 </div>
                 <p class="endpoint-description">
-                    Retrieve the current balance of a blockchain address across multiple chains.
+                    Get general blockchain information including chain type, block count, and difficulty.
                 </p>
-                <div class="param-list">
-                    <h4>Parameters:</h4>
-                    <div class="param-item">
-                        <span class="param-name">address</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Blockchain address (supports Ethereum, Bitcoin, etc.)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">chain</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Optional: Specific chain (eth, btc, polygon, etc.)</span>
-                    </div>
-                </div>
-                <div class="code-block">
-                    <pre><code>{
-  "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-  "balances": [
-    { "chain": "ethereum", "balance": "1.5432", "usd_value": "2850.34" },
-    { "chain": "polygon", "balance": "0.8921", "usd_value": "1640.22" }
-  ],
-  "total_usd": "4490.56"
-}</code></pre>
-                </div>
             </div>
             
             <div class="api-endpoint">
                 <div class="endpoint-header">
                     <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/blockchain/transactions/{address}</span>
+                    <span class="endpoint-path">/api/v1/blockchain/block/{block_hash}/</span>
                 </div>
                 <p class="endpoint-description">
-                    Get transaction history for a blockchain address with filtering options.
+                    Get information about a specific block by its hash.
                 </p>
                 <div class="param-list">
-                    <h4>Parameters:</h4>
+                    <h4>Query Parameters:</h4>
                     <div class="param-item">
-                        <span class="param-name">address</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Blockchain address</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">limit</span>
+                        <span class="param-name">verbosity</span>
                         <span class="param-type">integer</span>
-                        <span class="param-desc">Number of transactions (default: 50, max: 1000)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">offset</span>
-                        <span class="param-type">integer</span>
-                        <span class="param-desc">Pagination offset</span>
+                        <span class="param-desc">Level of detail (default: 1)</span>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="api-section">
-            <h2>💱 DeFi Protocol Integration</h2>
             
             <div class="api-endpoint">
                 <div class="endpoint-header">
                     <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/defi/protocols</span>
+                    <span class="endpoint-path">/api/v1/blockchain/address/{address}/balance/</span>
                 </div>
                 <p class="endpoint-description">
-                    List all supported DeFi protocols with their TVL (Total Value Locked) and APY rates.
+                    Retrieve the current balance of a blockchain address.
                 </p>
                 <div class="code-block">
                     <pre><code>{
-  "protocols": [
-    {
-      "name": "Uniswap",
-      "tvl": "4500000000",
-      "chains": ["ethereum", "polygon", "optimism"],
-      "apy_range": "3.5-25.0"
-    },
-    {
-      "name": "Aave",
-      "tvl": "5200000000",
-      "chains": ["ethereum", "polygon", "avalanche"],
-      "apy_range": "2.0-18.5"
-    }
-  ]
-}</code></pre>
-                </div>
-            </div>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/defi/pools/{protocol}</span>
-                </div>
-                <p class="endpoint-description">
-                    Get liquidity pools for a specific protocol with APY and liquidity information.
-                </p>
-                <div class="param-list">
-                    <h4>Parameters:</h4>
-                    <div class="param-item">
-                        <span class="param-name">protocol</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Protocol name (uniswap, aave, compound, etc.)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">chain</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Filter by blockchain</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">min_apy</span>
-                        <span class="param-type">float</span>
-                        <span class="param-desc">Minimum APY percentage</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/defi/swap</span>
-                </div>
-                <p class="endpoint-description">
-                    Execute a token swap across multiple DEX aggregators to get the best rate.
-                </p>
-                <div class="param-list">
-                    <h4>Request Body:</h4>
-                    <div class="param-item">
-                        <span class="param-name">from_token</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Token address or symbol to swap from</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">to_token</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Token address or symbol to swap to</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">amount</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Amount to swap (in token units)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">slippage</span>
-                        <span class="param-type">float</span>
-                        <span class="param-desc">Maximum slippage tolerance (default: 0.5%)</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="api-section">
-            <h2>📊 Market Data & Analytics</h2>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/market/prices</span>
-                </div>
-                <p class="endpoint-description">
-                    Get real-time prices for crypto assets and tokens.
-                </p>
-                <div class="param-list">
-                    <h4>Parameters:</h4>
-                    <div class="param-item">
-                        <span class="param-name">symbols</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Comma-separated list of symbols (ETH,BTC,USDC)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">currency</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Base currency (USD, EUR, default: USD)</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/market/chart/{symbol}</span>
-                </div>
-                <p class="endpoint-description">
-                    Get historical price data for charting and analysis.
-                </p>
-                <div class="param-list">
-                    <h4>Parameters:</h4>
-                    <div class="param-item">
-                        <span class="param-name">symbol</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Token symbol (ETH, BTC, etc.)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">interval</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Time interval (1m, 5m, 1h, 1d, etc.)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">from</span>
-                        <span class="param-type">timestamp</span>
-                        <span class="param-desc">Start time (Unix timestamp)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">to</span>
-                        <span class="param-type">timestamp</span>
-                        <span class="param-desc">End time (Unix timestamp)</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="api-section">
-            <h2>💼 Portfolio Management</h2>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/portfolio/{user_id}</span>
-                </div>
-                <p class="endpoint-description">
-                    Get complete portfolio overview with positions, balances, and performance metrics.
-                </p>
-                <div class="code-block">
-                    <pre><code>{
-  "total_value_usd": "25430.50",
-  "24h_change": "+3.2%",
-  "positions": [
-    {
-      "asset": "ETH",
-      "balance": "5.234",
-      "value_usd": "9821.40",
-      "profit_loss": "+12.5%"
-    }
-  ],
-  "defi_positions": [
-    {
-      "protocol": "Aave",
-      "type": "lending",
-      "asset": "USDC",
-      "deposited": "10000",
-      "apy": "4.5%"
-    }
-  ]
-}</code></pre>
-                </div>
-            </div>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/portfolio/track</span>
-                </div>
-                <p class="endpoint-description">
-                    Add a wallet or contract address to track in your portfolio.
-                </p>
-                <div class="param-list">
-                    <h4>Request Body:</h4>
-                    <div class="param-item">
-                        <span class="param-name">address</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Wallet address to track</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">label</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Optional label for the address</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="api-section">
-            <h2>🔍 Advanced Analytics</h2>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/analytics/yield-opportunities</span>
-                </div>
-                <p class="endpoint-description">
-                    Discover the best yield farming and staking opportunities across protocols.
-                </p>
-                <div class="param-list">
-                    <h4>Parameters:</h4>
-                    <div class="param-item">
-                        <span class="param-name">min_apy</span>
-                        <span class="param-type">float</span>
-                        <span class="param-desc">Minimum APY threshold</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">risk_level</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Risk filter (low, medium, high)</span>
-                    </div>
-                    <div class="param-item">
-                        <span class="param-name">chains</span>
-                        <span class="param-type">string</span>
-                        <span class="param-desc">Comma-separated chain list</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="api-endpoint">
-                <div class="endpoint-header">
-                    <span class="http-method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/analytics/gas-tracker</span>
-                </div>
-                <p class="endpoint-description">
-                    Real-time gas prices across multiple chains for optimal transaction timing.
-                </p>
-                <div class="code-block">
-                    <pre><code>{
-  "ethereum": {
-    "slow": "20 gwei",
-    "standard": "35 gwei",
-    "fast": "50 gwei",
-    "instant": "70 gwei"
-  },
-  "polygon": {
-    "slow": "30 gwei",
-    "standard": "40 gwei",
-    "fast": "60 gwei"
+  "success": true,
+  "address": "EVRTestAddress123456789",
+  "balance": {
+    "balance": 1000000000,
+    "received": 1000000000
   }
 }</code></pre>
                 </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/blockchain/address/{address}/transactions/</span>
+                </div>
+                <p class="endpoint-description">
+                    Get transaction IDs for a specific address.
+                </p>
+                <div class="param-list">
+                    <h4>Query Parameters:</h4>
+                    <div class="param-item">
+                        <span class="param-name">start</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">Start block height (optional)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">end</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">End block height (optional)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/blockchain/address/{address}/utxos/</span>
+                </div>
+                <p class="endpoint-description">
+                    Get unspent transaction outputs (UTXOs) for an address.
+                </p>
+            </div>
+        </div>
+        
+        <div class="api-section">
+            <h2>💬 Messaging</h2>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/messages/send/</span>
+                </div>
+                <p class="endpoint-description">
+                    Send a message to a channel on the Evrmore blockchain. Requires authentication.
+                </p>
+                <div class="param-list">
+                    <h4>Request Body:</h4>
+                    <div class="param-item">
+                        <span class="param-name">channel_name</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Name of the channel (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">ipfs_hash</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">IPFS hash of the message (required)</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">expire_time</span>
+                        <span class="param-type">integer</span>
+                        <span class="param-desc">Expiration time (default: 0)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/messages/</span>
+                </div>
+                <p class="endpoint-description">
+                    View all messages from subscribed channels.
+                </p>
+            </div>
+            
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/messages/channels/</span>
+                </div>
+                <p class="endpoint-description">
+                    View all available message channels.
+                </p>
             </div>
         </div>
     </div>
