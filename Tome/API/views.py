@@ -8,6 +8,7 @@ import json
 
 from .models import SolidityContract, ContractInteraction, ContractAsset
 from .rpc import evrmore_rpc
+from .authentication import api_key_required
 
 
 # ============================================================
@@ -16,7 +17,16 @@ from .rpc import evrmore_rpc
 
 def docs(request):
     """API Documentation page with DeFi-related commands"""
-    return render(request, 'api/docs.html')
+    # Check if user is authenticated
+    user_has_api_key = False
+    if request.user.is_authenticated:
+        from .models import APIKey
+        user_has_api_key = APIKey.objects.filter(user=request.user, is_active=True).exists()
+    
+    context = {
+        'user_has_api_key': user_has_api_key,
+    }
+    return render(request, 'api/docs.html', context)
 
 
 @require_http_methods(["GET"])
@@ -63,7 +73,7 @@ def contracts_list(request):
     List all contracts or deploy a new contract.
     
     GET: List all deployed contracts
-    POST: Deploy a new contract
+    POST: Deploy a new contract (requires API key)
     """
     if request.method == 'GET':
         # List contracts
@@ -106,60 +116,65 @@ def contracts_list(request):
         })
     
     elif request.method == 'POST':
-        # Deploy a new contract
-        if not request.user.is_authenticated:
-            return JsonResponse({
-                'success': False,
-                'error': 'Authentication required'
-            }, status=401)
+        # Deploy endpoint moved to separate function with API key auth
+        return contracts_deploy(request)
+
+
+@csrf_exempt
+@api_key_required
+@require_http_methods(["POST"])
+def contracts_deploy(request):
+    """
+    Deploy a new contract. Requires API key authentication.
+    """
+    try:
+        data = json.loads(request.body)
         
-        try:
-            data = json.loads(request.body)
-            
-            # Required fields
-            name = data.get('name')
-            contract_address = data.get('contract_address')  # Asset name or identifier
-            
-            if not name or not contract_address:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Name and contract_address are required'
-                }, status=400)
-            
-            # Create contract record
-            contract = SolidityContract.objects.create(
-                name=name,
-                contract_address=contract_address,
-                source_code=data.get('source_code', ''),
-                bytecode=data.get('bytecode', ''),
-                abi=data.get('abi', []),
-                deployer=request.user,
-                deployment_tx=data.get('deployment_tx', ''),
-                deployment_block=data.get('deployment_block'),
-                description=data.get('description', ''),
-                ipfs_hash=data.get('ipfs_hash', ''),
-            )
-            
-            return JsonResponse({
-                'success': True,
-                'contract': {
-                    'id': contract.id,
-                    'name': contract.name,
-                    'contract_address': contract.contract_address,
-                    'created_at': contract.created_at.isoformat(),
-                }
-            }, status=201)
-            
-        except json.JSONDecodeError:
+        # Required fields
+        name = data.get('name')
+        contract_address = data.get('contract_address')  # Asset name or identifier
+        
+        if not name or not contract_address:
             return JsonResponse({
                 'success': False,
-                'error': 'Invalid JSON'
+                'error': 'Name and contract_address are required'
             }, status=400)
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=500)
+        
+        # Create contract record
+        contract = SolidityContract.objects.create(
+            name=name,
+            contract_address=contract_address,
+            source_code=data.get('source_code', ''),
+            bytecode=data.get('bytecode', ''),
+            abi=data.get('abi', []),
+            deployer=request.user,
+            deployment_tx=data.get('deployment_tx', ''),
+            deployment_block=data.get('deployment_block'),
+            description=data.get('description', ''),
+            ipfs_hash=data.get('ipfs_hash', ''),
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'contract': {
+                'id': contract.id,
+                'name': contract.name,
+                'contract_address': contract.contract_address,
+                'created_at': contract.created_at.isoformat(),
+            }
+        }, status=201)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
 
 
 @require_http_methods(["GET"])
@@ -234,10 +249,11 @@ def contract_detail(request, contract_id):
 
 
 @csrf_exempt
+@api_key_required
 @require_http_methods(["POST"])
 def contract_interact(request, contract_id):
     """
-    Interact with a contract by calling a function.
+    Interact with a contract by calling a function. Requires API key authentication.
     
     Args:
         contract_id: ID of the contract
@@ -249,11 +265,6 @@ def contract_interact(request, contract_id):
     Returns:
         JSON response with interaction result
     """
-    if not request.user.is_authenticated:
-        return JsonResponse({
-            'success': False,
-            'error': 'Authentication required'
-        }, status=401)
     
     try:
         contract = SolidityContract.objects.get(id=contract_id, is_active=True)
@@ -376,10 +387,11 @@ def asset_detail(request, asset_name):
 
 
 @csrf_exempt
+@api_key_required
 @require_http_methods(["POST"])
 def asset_issue(request):
     """
-    Issue a new asset on the Evrmore blockchain.
+    Issue a new asset on the Evrmore blockchain. Requires API key authentication.
     
     Body:
         asset_name: Name of the asset
@@ -391,11 +403,6 @@ def asset_issue(request):
         has_ipfs: Has IPFS metadata (default: false)
         ipfs_hash: IPFS hash (optional)
     """
-    if not request.user.is_authenticated:
-        return JsonResponse({
-            'success': False,
-            'error': 'Authentication required'
-        }, status=401)
     
     try:
         data = json.loads(request.body)
@@ -438,10 +445,11 @@ def asset_issue(request):
 
 
 @csrf_exempt
+@api_key_required
 @require_http_methods(["POST"])
 def asset_transfer(request):
     """
-    Transfer an asset to another address.
+    Transfer an asset to another address. Requires API key authentication.
     
     Body:
         asset_name: Name of the asset
@@ -452,11 +460,6 @@ def asset_transfer(request):
         change_address: Change address (optional)
         asset_change_address: Asset change address (optional)
     """
-    if not request.user.is_authenticated:
-        return JsonResponse({
-            'success': False,
-            'error': 'Authentication required'
-        }, status=401)
     
     try:
         data = json.loads(request.body)
@@ -630,21 +633,17 @@ def address_utxos(request, address):
 # ============================================================
 
 @csrf_exempt
+@api_key_required
 @require_http_methods(["POST"])
 def send_message(request):
     """
-    Send a message to a channel.
+    Send a message to a channel. Requires API key authentication.
     
     Body:
         channel_name: Name of the channel
         ipfs_hash: IPFS hash of the message
         expire_time: Expiration time (default: 0)
     """
-    if not request.user.is_authenticated:
-        return JsonResponse({
-            'success': False,
-            'error': 'Authentication required'
-        }, status=401)
     
     try:
         data = json.loads(request.body)

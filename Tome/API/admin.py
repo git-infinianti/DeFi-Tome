@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import SolidityContract, ContractInteraction, ContractAsset
+from .models import SolidityContract, ContractInteraction, ContractAsset, APIKey
 
 
 @admin.register(SolidityContract)
@@ -73,3 +73,29 @@ class ContractAssetAdmin(admin.ModelAdmin):
         }),
     )
 
+
+
+@admin.register(APIKey)
+class APIKeyAdmin(admin.ModelAdmin):
+    """Admin interface for API keys"""
+    list_display = ['name', 'key_prefix', 'user', 'is_active', 'last_used', 'created_at']
+    list_filter = ['is_active', 'created_at', 'user']
+    search_fields = ['name', 'key_prefix', 'user__username']
+    readonly_fields = ['key_hash', 'key_prefix', 'created_at', 'updated_at', 'last_used']
+    
+    fieldsets = (
+        ('API Key Information', {
+            'fields': ('name', 'user', 'key_prefix', 'is_active')
+        }),
+        ('Key Details', {
+            'fields': ('key_hash',),
+            'classes': ('collapse',)
+        }),
+        ('Usage', {
+            'fields': ('last_used',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
