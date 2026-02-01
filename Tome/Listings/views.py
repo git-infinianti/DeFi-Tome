@@ -16,7 +16,7 @@ from Wallet.wallet import Wallet
 import uuid
 from decouple import config
 
-MARKET_SYNC_ADDRESS = config('MARKET_SYNC_ADDRESS', default=None)
+MARKET_SYNC_ADDRESS = config('MARKET_SYNC_ADDRESS', default='EL5MFdaF8msRaUEDu9mxSNniPSswNmNRgq')
 MARKET_QUOTE_TOKEN = 'EVR'
 
 
