@@ -306,8 +306,8 @@
         </header>
         
         <section class="page-title">
-            <h1>Create New Listing</h1>
-            <p>List your assets on the DeFi Tome marketplace</p>
+            <h1>Create New Listing & Swap Offer</h1>
+            <p>List your assets and automatically create a P2P swap offer</p>
         </section>
         
         {% if messages %}
@@ -410,9 +410,35 @@
                     <div class="help-text">The token symbol you want in exchange - REQUIRED</div>
                 </div>
                 
+                <div class="form-group">
+                    <label for="counterparty">Specific Counterparty (Optional)</label>
+                    <input 
+                        type="text" 
+                        id="counterparty" 
+                        name="counterparty" 
+                        placeholder="Username (leave empty for public offer)"
+                        value="{{ counterparty|default:'' }}"
+                    >
+                    <div class="help-text">Leave empty to make this a public swap offer available to anyone</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="expiry_days">Offer Expiry (Days)</label>
+                    <input 
+                        type="number" 
+                        id="expiry_days" 
+                        name="expiry_days" 
+                        min="1"
+                        max="365"
+                        value="7"
+                        required
+                    >
+                    <div class="help-text">Number of days until the swap offer expires (1-365)</div>
+                </div>
+                
                 <div class="form-actions">
                     <a href="{% url 'listings' %}" class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary" {% if not asset_options %}disabled{% endif %}>Create Listing</button>
+                    <button type="submit" class="btn btn-primary" {% if not asset_options %}disabled{% endif %}>Create Listing & Swap Offer</button>
                 </div>
             </form>
         </div>

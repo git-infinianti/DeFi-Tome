@@ -285,91 +285,12 @@ def transactions(request):
 
 @login_required
 def create_swap_offer(request, listing_id=None):
-    """Create a P2P swap offer"""
-    marketplace_listing = None
-    initial_data = {}
-    
-    if listing_id:
-        from Listings.models import Listing
-        try:
-            listing = Listing.objects.get(id=listing_id)
-            # Pre-populate with listing information
-            initial_data = {
-                'counterparty': listing.seller.username,
-                'preferred_token': listing.preferred_token
-            }
-        except Listing.DoesNotExist:
-            messages.error(request, 'Listing not found.')
-            return redirect('listings')
-    
-    if request.method == 'POST':
-        offer_token = request.POST.get('offer_token', '').strip().upper()
-        offer_amount = request.POST.get('offer_amount', '').strip()
-        request_token = request.POST.get('request_token', '').strip().upper()
-        request_amount = request.POST.get('request_amount', '').strip()
-        counterparty_username = request.POST.get('counterparty', '').strip()
-        
-        # Validate inputs
-        if not all([offer_token, offer_amount, request_token, request_amount]):
-            messages.error(request, 'All fields are required.')
-            return redirect('create_swap_offer')
-        
-        # Validate token symbols are different
-        if offer_token == request_token:
-            messages.error(request, 'Cannot swap the same token for itself.')
-            return redirect('create_swap_offer')
-        
-        # Validate token format (alphanumeric only)
-        if not offer_token.isalnum() or not request_token.isalnum():
-            messages.error(request, 'Token symbols must be alphanumeric only.')
-            return redirect('create_swap_offer')
-        
-        try:
-            offer_amount = Decimal(offer_amount)
-            request_amount = Decimal(request_amount)
-            
-            if offer_amount <= 0 or request_amount <= 0:
-                messages.error(request, 'Amounts must be greater than zero.')
-                return redirect('create_swap_offer')
-        except (ValueError, InvalidOperation):
-            messages.error(request, 'Invalid amount format.')
-            return redirect('create_swap_offer')
-        
-        # Get counterparty if specified
-        counterparty = None
-        if counterparty_username:
-            try:
-                from django.contrib.auth.models import User
-                counterparty = User.objects.get(username=counterparty_username)
-                if counterparty == request.user:
-                    messages.error(request, 'Cannot create swap offer with yourself.')
-                    return redirect('create_swap_offer')
-            except User.DoesNotExist:
-                messages.error(request, f'User {counterparty_username} not found.')
-                return redirect('create_swap_offer')
-        
-        # Create swap offer
-        expires_at = timezone.now() + timedelta(days=7)
-        swap_offer = SwapOffer.objects.create(
-            initiator=request.user,
-            counterparty=counterparty,
-            marketplace_listing=marketplace_listing,
-            offer_token=offer_token,
-            offer_amount=offer_amount,
-            request_token=request_token,
-            request_amount=request_amount,
-            expires_at=expires_at,
-            escrow_id=f'escrow-{uuid.uuid4()}'
-        )
-        
-        messages.success(request, 'Swap offer created successfully!')
-        return redirect('my_swap_offers')
-    
-    context = {
-        'initial_data': initial_data,
-        'marketplace_listing': marketplace_listing
-    }
-    return render(request, 'defi/create_swap_offer.html', context)
+    """
+    DEPRECATED: Redirects to create_listing which now handles both listing and swap offer creation.
+    This function is kept for backward compatibility with existing URLs and templates.
+    """
+    messages.info(request, 'Swap offers are now created through the unified listing interface.')
+    return redirect('create_listing')
 
 @login_required
 def accept_swap_offer(request, offer_id):

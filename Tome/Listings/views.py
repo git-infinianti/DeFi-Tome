@@ -275,7 +275,11 @@ def listings(request):
 
 @login_required
 def create_listing(request):
-    """Create a new listing"""
+    """Create a new listing with automatic swap offer creation"""
+    from DeFi.models import SwapOffer
+    from django.utils import timezone
+    from datetime import timedelta
+    
     asset_balances, balance_error = _get_user_asset_balances(request.user)
     asset_options = [
         {
@@ -299,6 +303,8 @@ def create_listing(request):
         price = request.POST.get('price', '').strip()
         token_offered = request.POST.get('token_offered', '').strip().upper()
         preferred_token = request.POST.get('preferred_token', '').strip().upper()
+        counterparty_username = request.POST.get('counterparty', '').strip()  # Optional specific counterparty
+        expiry_days = request.POST.get('expiry_days', '7').strip()  # Default 7 days
 
         selected_balance = asset_balances.get(token_offered)
         quantity = None
@@ -316,6 +322,15 @@ def create_listing(request):
         
         if not token_offered.isalnum() or not preferred_token.isalnum():
             messages.error(request, 'Token symbols must be alphanumeric only.')
+            return render(request, 'listings/create_listing.html', {
+                'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
+            })
+        
+        # Validate tokens are different
+        if token_offered == preferred_token:
+            messages.error(request, 'Cannot swap the same token for itself.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
@@ -376,6 +391,7 @@ def create_listing(request):
         try:
             price_decimal = Decimal(price)
             quantity_decimal = Decimal(str(selected_balance))
+            expiry_days_int = int(expiry_days)
             
             if price_decimal <= 0:
                 messages.error(request, 'Price must be greater than 0.')
@@ -392,35 +408,89 @@ def create_listing(request):
                     'token_offered': token_offered, 'preferred_token': preferred_token,
                     'asset_options': asset_options, 'asset_balances': asset_balances
                 })
+            
+            if expiry_days_int < 1 or expiry_days_int > 365:
+                messages.error(request, 'Expiry must be between 1 and 365 days.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances
+                })
         except (ValueError, InvalidOperation):
-            messages.error(request, 'Invalid price or quantity format.')
+            messages.error(request, 'Invalid price, quantity, or expiry format.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
                 'asset_options': asset_options, 'asset_balances': asset_balances
             })
         
-        # Create the listing item
-        item = ListingItem.objects.create(
-            title=title,
-            description=description,
-            quantity=quantity_decimal,
-            individual_price=price_decimal,
-            total_price=price_decimal * quantity_decimal
-        )
+        # Get counterparty if specified
+        counterparty = None
+        if counterparty_username:
+            try:
+                from django.contrib.auth.models import User
+                counterparty = User.objects.get(username=counterparty_username)
+                if counterparty == request.user:
+                    messages.error(request, 'Cannot create swap offer with yourself.')
+                    return render(request, 'listings/create_listing.html', {
+                        'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                        'token_offered': token_offered, 'preferred_token': preferred_token,
+                        'asset_options': asset_options, 'asset_balances': asset_balances
+                    })
+            except User.DoesNotExist:
+                messages.error(request, f'User {counterparty_username} not found.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances
+                })
         
-        # Create the listing
-        Listing.objects.create(
-            item=item,
-            seller=request.user,
-            price=price_decimal,
-            quantity_available=quantity_decimal,
-            token_offered=token_offered,
-            preferred_token=preferred_token
-        )
-        
-        messages.success(request, 'Listing created successfully!')
-        return redirect('listings')
+        # Create the listing item and listing with swap offer in atomic transaction
+        try:
+            with transaction.atomic():
+                # Create the listing item
+                item = ListingItem.objects.create(
+                    title=title,
+                    description=description,
+                    quantity=quantity_decimal,
+                    individual_price=price_decimal,
+                    total_price=price_decimal * quantity_decimal
+                )
+                
+                # Create the listing
+                listing = Listing.objects.create(
+                    item=item,
+                    seller=request.user,
+                    price=price_decimal,
+                    quantity_available=quantity_decimal,
+                    token_offered=token_offered,
+                    preferred_token=preferred_token
+                )
+                
+                # Create corresponding swap offer automatically
+                expires_at = timezone.now() + timedelta(days=expiry_days_int)
+                swap_offer = SwapOffer.objects.create(
+                    initiator=request.user,
+                    counterparty=counterparty,
+                    listing=listing,
+                    offer_token=token_offered,
+                    offer_amount=quantity_decimal,
+                    request_token=preferred_token,
+                    request_amount=price_decimal * quantity_decimal,  # Total price requested
+                    expires_at=expires_at,
+                    escrow_id=f'escrow-{uuid.uuid4()}'
+                )
+                
+                messages.success(request, f'Listing and swap offer created successfully! Expires in {expiry_days_int} days.')
+                return redirect('listings')
+                
+        except Exception as e:
+            messages.error(request, f'Error creating listing: {str(e)}')
+            return render(request, 'listings/create_listing.html', {
+                'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances
+            })
     
     return render(request, 'listings/create_listing.html', {
         'asset_options': asset_options,
