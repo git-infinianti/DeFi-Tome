@@ -14,7 +14,6 @@ from Explorer.rpc import RPC
 from Wallet.models import WalletAddress
 from Wallet.wallet import Wallet
 import uuid
-from decouple import config
 
 from django.conf import settings
 MARKET_SYNC_ADDRESS = settings.MARKET_SYNC_ADDRESS
