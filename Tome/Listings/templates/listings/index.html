@@ -244,6 +244,17 @@
             font-size: 1.1rem;
         }
         
+        .nft-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #a78bfa, #60a5fa);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
         @media (max-width: 768px) {
             .listings-grid {
                 grid-template-columns: 1fr;
@@ -296,6 +307,9 @@
                 {% for listing in listings %}
                     <div class="listing-card">
                         <div class="listing-header">
+                            {% if listing.item.is_nft %}
+                                <span class="nft-badge">🎨 NFT (1 of 1)</span>
+                            {% endif %}
                             <h3 class="listing-title">{{ listing.item.title }}</h3>
                             <div class="listing-seller">Seller: {{ listing.seller.username }}</div>
                         </div>

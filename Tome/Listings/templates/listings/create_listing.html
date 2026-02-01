@@ -436,6 +436,34 @@
                     <div class="help-text">Number of days until the swap offer expires (1-365)</div>
                 </div>
                 
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 2rem 0;">
+                
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input 
+                            type="checkbox" 
+                            id="is_nft" 
+                            name="is_nft" 
+                            value="true"
+                            style="width: auto; cursor: pointer;"
+                        >
+                        <span style="cursor: pointer;">Create as NFT (1 of 1)</span>
+                    </label>
+                    <div class="help-text">Convert this listing into a unique NFT asset with 1-of-1 quantity</div>
+                </div>
+                
+                <div class="form-group" id="nft-image-group" style="display: none;">
+                    <label for="nft_image_ipfs_cid">NFT Image IPFS CID (Optional)</label>
+                    <input 
+                        type="text" 
+                        id="nft_image_ipfs_cid" 
+                        name="nft_image_ipfs_cid" 
+                        placeholder="e.g., QmXxxx... or bafyxxx..."
+                        maxlength="100"
+                    >
+                    <div class="help-text">Enter an IPFS Content Identifier (CID) for your NFT image. Leave empty if you don't have one.</div>
+                </div>
+                
                 <div class="form-actions">
                     <a href="{% url 'listings' %}" class="btn btn-secondary">Cancel</a>
                     <button type="submit" class="btn btn-primary" {% if not asset_options %}disabled{% endif %}>Create Listing & Swap Offer</button>
@@ -449,6 +477,8 @@
             const quantityInput = document.getElementById('quantity');
             const preferredTokenSelect = document.getElementById('preferred_token');
             const priceTokenSpan = document.getElementById('price-token');
+            const isNftCheckbox = document.getElementById('is_nft');
+            const nftImageGroup = document.getElementById('nft-image-group');
 
             const updateQuantity = () => {
                 if (!tokenSelect || !quantityInput) return;
@@ -467,6 +497,11 @@
                 priceTokenSpan.textContent = selectedToken;
             };
 
+            const toggleNftGroup = () => {
+                if (!isNftCheckbox || !nftImageGroup) return;
+                nftImageGroup.style.display = isNftCheckbox.checked ? 'block' : 'none';
+            };
+
             if (tokenSelect) {
                 tokenSelect.addEventListener('change', updateQuantity);
                 updateQuantity();
@@ -475,6 +510,11 @@
             if (preferredTokenSelect) {
                 preferredTokenSelect.addEventListener('change', updatePriceLabel);
                 updatePriceLabel();
+            }
+
+            if (isNftCheckbox) {
+                isNftCheckbox.addEventListener('change', toggleNftGroup);
+                toggleNftGroup();
             }
         });
     </script>

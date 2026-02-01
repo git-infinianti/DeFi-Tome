@@ -14,6 +14,10 @@ class ListingItem(models.Model):
     total_price = models.DecimalField(max_digits=20, decimal_places=8)
     created_at = models.DateTimeField(auto_now_add=True)
     
+    # NFT fields
+    is_nft = models.BooleanField(default=False)
+    nft_image_ipfs_cid = models.CharField(max_length=100, blank=True, null=True, help_text="IPFS CID for NFT image")
+    
     def __str__(self):
         return self.title
 
@@ -234,3 +238,75 @@ class OrderExecution(models.Model):
     
     def __str__(self):
         return f"Trade: {self.quantity} {self.trading_pair.base_token} @ {self.price}"
+
+class BalanceLock(models.Model):
+    """
+    Tracks EVR balance locks (reservations) when users place buy orders.
+    
+    When a user places a buy order, the EVR amount is locked/reserved.
+    When the order is filled, cancelled, or expires, the lock is released or consumed.
+    """
+    STATUS_CHOICES = [
+        ('locked', 'Locked'),
+        ('released', 'Released'),
+        ('consumed', 'Consumed'),
+    ]
+    
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='balance_locks', db_index=True)
+    amount = models.DecimalField(max_digits=20, decimal_places=8, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='locked', db_index=True)
+    
+    # Reference to the order that triggered the lock
+    limit_order = models.ForeignKey(LimitOrder, on_delete=models.CASCADE, related_name='balance_lock', null=True, blank=True)
+    market_order = models.ForeignKey(MarketOrder, on_delete=models.CASCADE, related_name='balance_lock', null=True, blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"BalanceLock({self.user.username}, {self.amount} EVR, {self.status})"
+    
+    def get_total_locked(user):
+        """Get total amount of EVR locked for a user"""
+        from django.db.models import Sum
+        total = BalanceLock.objects.filter(
+            user=user,
+            status='locked'
+        ).aggregate(total=Sum('amount'))['total']
+        return total or 0
+
+
+class NFT(models.Model):
+    """
+    NFT model for tracking 1 of 1 unique digital assets.
+    Each NFT is associated with a ListingItem that has is_nft=True and quantity=1.
+    """
+    listing_item = models.OneToOneField(ListingItem, on_delete=models.CASCADE, related_name='nft')
+    owner = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='owned_nfts')
+    creator = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='created_nfts')
+    
+    # IPFS image CID
+    image_ipfs_cid = models.CharField(max_length=100, help_text="IPFS CID for NFT image")
+    
+    # Metadata
+    token_id = models.CharField(max_length=100, unique=True, db_index=True, help_text="Unique token ID for the NFT")
+    contract_address = models.CharField(max_length=100, blank=True, null=True, help_text="Blockchain contract address if minted on-chain")
+    tx_hash = models.CharField(max_length=100, blank=True, null=True, help_text="Transaction hash for on-chain minting")
+    
+    # Status
+    is_listed = models.BooleanField(default=False, help_text="Whether this NFT is currently listed for sale")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"NFT: {self.listing_item.title} (Owner: {self.owner.username})"
+    
+    def get_ipfs_url(self):
+        """Get IPFS gateway URL for the image"""
+        if self.image_ipfs_cid:
+            return f"https://ipfs.io/ipfs/{self.image_ipfs_cid}"
+        return None

@@ -3,7 +3,7 @@ from .models import (
     ListingItem, ListingCategory, ItemCategory, 
     ListingTransaction, ListingReview, Listing, 
     ListingOrder, TradingPair, LimitOrder, MarketOrder, 
-    StopLossOrder, OrderExecution
+    StopLossOrder, OrderExecution, BalanceLock, NFT
 )
 
 # Register your models here.
@@ -19,3 +19,5 @@ admin.site.register(LimitOrder)
 admin.site.register(MarketOrder)
 admin.site.register(StopLossOrder)
 admin.site.register(OrderExecution)
+admin.site.register(BalanceLock)
+admin.site.register(NFT)

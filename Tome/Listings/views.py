@@ -8,7 +8,7 @@ from django.db.models import ExpressionWrapper
 from django.utils import timezone
 from .models import (
     Listing, ListingItem, TradingPair, LimitOrder,
-    MarketOrder, StopLossOrder, OrderExecution
+    MarketOrder, StopLossOrder, OrderExecution, BalanceLock
 )
 from Explorer.rpc import RPC
 from Wallet.models import WalletAddress
@@ -21,10 +21,10 @@ MARKET_QUOTE_TOKEN = 'EVR'
 
 def _get_user_token_balance(user, token_symbol):
     """
-    Calculate user's balance for a specific token based on order executions.
+    Calculate user's balance for a specific token.
     
-    For buy orders: user receives base_token (credit) when they're the buyer
-    For sell orders: user receives quote_token (credit) when they're the seller
+    For EVR (quote token): fetches from blockchain via RPC getaddressbalance
+    For other tokens: calculates from order executions
     
     Args:
         user: User instance
@@ -33,6 +33,24 @@ def _get_user_token_balance(user, token_symbol):
     Returns:
         Decimal: The user's balance for the token
     """
+    # For EVR, get balance directly from blockchain
+    if token_symbol == 'EVR':
+        address = _get_user_primary_address(user)
+        if not address:
+            return Decimal('0')
+        
+        try:
+            balance_info = RPC.getaddressbalance(address)
+            if isinstance(balance_info, dict) and 'balance' in balance_info:
+                # Convert from satoshis to EVR (divide by 1e-8)
+                balance_satoshis = Decimal(str(balance_info['balance']))
+                balance_evr = balance_satoshis * Decimal('1e-8')
+                return balance_evr
+        except Exception as e:
+            print(f"RPC error fetching balance: {e}")
+            return Decimal('0')
+    
+    # For other tokens, calculate from order executions
     balance = Decimal('0')
     
     # Get all trading pairs that involve this token
@@ -62,13 +80,23 @@ def _get_user_token_balance(user, token_symbol):
             sell_credits = OrderExecution.objects.filter(
                 trading_pair=pair,
                 seller=user
-            ).aggregate(total=Sum('quantity') * F('price'), output_field=DecimalField(max_digits=20, decimal_places=8))['total__total'] or Decimal('0')
+            ).aggregate(
+                total=ExpressionWrapper(
+                    Sum('quantity') * F('price'),
+                    output_field=DecimalField(max_digits=20, decimal_places=8)
+                )
+            )['total'] or Decimal('0')
             
             # User spends quote_token when they're the buyer
             buy_debits = OrderExecution.objects.filter(
                 trading_pair=pair,
                 buyer=user
-            ).aggregate(total=Sum('quantity') * F('price'), output_field=DecimalField(max_digits=20, decimal_places=8))['total__total'] or Decimal('0')
+            ).aggregate(
+                total=ExpressionWrapper(
+                    Sum('quantity') * F('price'),
+                    output_field=DecimalField(max_digits=20, decimal_places=8)
+                )
+            )['total'] or Decimal('0')
             
             balance += sell_credits - buy_debits
     
@@ -275,7 +303,7 @@ def listings(request):
 
 @login_required
 def create_listing(request):
-    """Create a new listing with automatic swap offer creation"""
+    """Create a new listing with automatic swap offer creation and optional NFT creation"""
     from DeFi.models import SwapOffer
     from django.utils import timezone
     from datetime import timedelta
@@ -309,6 +337,10 @@ def create_listing(request):
         preferred_token = request.POST.get('preferred_token', '').strip().upper()
         counterparty_username = request.POST.get('counterparty', '').strip()  # Optional specific counterparty
         expiry_days = request.POST.get('expiry_days', '7').strip()  # Default 7 days
+        
+        # NFT fields
+        is_nft = request.POST.get('is_nft', 'false').lower() == 'true'
+        nft_image_ipfs_cid = request.POST.get('nft_image_ipfs_cid', '').strip() if is_nft else None
 
         selected_balance = asset_balances.get(token_offered)
         quantity = None
@@ -323,6 +355,17 @@ def create_listing(request):
                 'token_offered': token_offered, 'preferred_token': preferred_token,
                 'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
+        
+        # NFT validation: must be 1 of 1, and image IPFS CID is optional but valid if provided
+        if is_nft:
+            if nft_image_ipfs_cid and len(nft_image_ipfs_cid) > 100:
+                messages.error(request, 'IPFS CID must not exceed 100 characters.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users,
+                    'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
+                })
         
         if not token_offered.isalnum() or not preferred_token.isalnum():
             messages.error(request, 'Token symbols must be alphanumeric only.')
@@ -397,6 +440,16 @@ def create_listing(request):
             quantity_decimal = Decimal(str(selected_balance))
             expiry_days_int = int(expiry_days)
             
+            # NFT constraint: must have quantity of exactly 1
+            if is_nft and quantity_decimal != Decimal('1'):
+                messages.error(request, 'NFTs must have a quantity of exactly 1 (1 of 1 unique asset).')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users,
+                    'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
+                })
+            
             if price_decimal <= 0:
                 messages.error(request, 'Price must be greater than 0.')
                 return render(request, 'listings/create_listing.html', {
@@ -458,7 +511,9 @@ def create_listing(request):
                     description=description,
                     quantity=quantity_decimal,
                     individual_price=price_decimal,
-                    total_price=price_decimal * quantity_decimal
+                    total_price=price_decimal * quantity_decimal,
+                    is_nft=is_nft,
+                    nft_image_ipfs_cid=nft_image_ipfs_cid if is_nft else None
                 )
                 
                 # Create the listing
@@ -470,6 +525,18 @@ def create_listing(request):
                     token_offered=token_offered,
                     preferred_token=preferred_token
                 )
+                
+                # Create NFT if is_nft is True
+                if is_nft:
+                    from .models import NFT
+                    nft = NFT.objects.create(
+                        listing_item=item,
+                        owner=request.user,
+                        creator=request.user,
+                        image_ipfs_cid=nft_image_ipfs_cid or '',
+                        token_id=f'nft-{uuid.uuid4()}',
+                        is_listed=True
+                    )
                 
                 # Create corresponding swap offer automatically
                 expires_at = timezone.now() + timedelta(days=expiry_days_int)
@@ -485,7 +552,8 @@ def create_listing(request):
                     escrow_id=f'escrow-{uuid.uuid4()}'
                 )
                 
-                messages.success(request, f'Listing and swap offer created successfully! Expires in {expiry_days_int} days.')
+                listing_type = 'NFT listing' if is_nft else 'listing'
+                messages.success(request, f'{listing_type.capitalize()} and swap offer created successfully! Expires in {expiry_days_int} days.')
                 return redirect('listings')
                 
         except Exception as e:
@@ -493,7 +561,8 @@ def create_listing(request):
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users,
+                'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
             })
     
     return render(request, 'listings/create_listing.html', {
@@ -507,8 +576,18 @@ def listing_detail(request, listing_id):
     """Display detailed view of a listing"""
     listing = get_object_or_404(Listing.objects.select_related('item', 'seller'), id=listing_id)
     
+    # Get NFT if this is an NFT listing
+    nft = None
+    if listing.item.is_nft:
+        try:
+            nft = listing.item.nft
+        except:
+            nft = None
+    
     context = {
         'listing': listing,
+        'nft': nft,
+        'nft_image_url': nft.get_ipfs_url() if nft else None,
     }
     return render(request, 'listings/listing_detail.html', context)
 
@@ -596,6 +675,17 @@ def place_limit_order(request):
             
             trading_pair = TradingPair.objects.get(id=pair_id, is_active=True)
             
+            # For buy orders, check if user has enough EVR balance
+            if side == 'buy':
+                total_cost = price_decimal * quantity_decimal
+                user_balance = _get_user_token_balance(request.user, trading_pair.quote_token)
+                if user_balance < total_cost:
+                    messages.error(
+                        request,
+                        f'Insufficient {trading_pair.quote_token} balance. Required: {total_cost:.8f}, Available: {user_balance:.8f}'
+                    )
+                    return redirect('dex_orderbook')
+            
             # Create limit order
             order = LimitOrder.objects.create(
                 user=request.user,
@@ -605,6 +695,16 @@ def place_limit_order(request):
                 quantity=quantity_decimal,
                 status='pending'
             )
+            
+            # For buy orders, create a balance lock (reservation) instead of deducting immediately
+            if side == 'buy':
+                total_cost = price_decimal * quantity_decimal
+                BalanceLock.objects.create(
+                    user=request.user,
+                    amount=total_cost,
+                    status='locked',
+                    limit_order=order
+                )
             
             # Try to match the order
             _match_order(order)
@@ -732,6 +832,40 @@ def place_market_order(request):
                         tx_hash=f'testnet-{uuid.uuid4()}'
                     )
                     
+                    # Handle EVR transfers when EVR is the quote token and this is a buy order
+                    if trading_pair.quote_token == 'EVR' and side == 'buy':
+                        evr_amount = fill_qty * limit_order.price
+                        
+                        # Send EVR from buyer to seller
+                        try:
+                            buyer_address = _get_user_primary_address(buyer)
+                            seller_address = _get_user_primary_address(seller)
+                            
+                            if buyer_address and seller_address:
+                                # RPC call: sendfromaddress(from_address, to_address, amount, "", "", false, 6)
+                                tx_hash = RPC.sendfromaddress(
+                                    buyer_address,
+                                    seller_address,
+                                    str(evr_amount),
+                                    "",
+                                    "",
+                                    False,
+                                    6
+                                )
+                                print(f"EVR transfer: {evr_amount} from {buyer_address} to {seller_address}, tx: {tx_hash}")
+                            else:
+                                print(f"Warning: Could not get addresses for EVR transfer")
+                        except Exception as e:
+                            print(f"Warning: Error sending EVR via RPC: {e}")
+                        
+                        # Update seller's wallet balance
+                        try:
+                            seller_wallet = seller.user_wallet
+                            seller_wallet.evr_liquidity += evr_amount
+                            seller_wallet.save()
+                        except Exception as e:
+                            print(f"Warning: Could not update seller wallet balance: {e}")
+                    
                     # Update limit order
                     limit_order.filled_quantity += fill_qty
                     if limit_order.filled_quantity >= limit_order.quantity:
@@ -751,7 +885,7 @@ def place_market_order(request):
                 else:
                     avg_price = Decimal('0')
                 
-                MarketOrder.objects.create(
+                market_order = MarketOrder.objects.create(
                     user=request.user,
                     trading_pair=trading_pair,
                     side=side,
@@ -760,6 +894,15 @@ def place_market_order(request):
                     status='executed',
                     tx_hash=f'testnet-{uuid.uuid4()}'
                 )
+                
+                # Create balance lock for buy orders to track EVR consumption
+                if side == 'buy' and total_cost > 0:
+                    BalanceLock.objects.create(
+                        user=request.user,
+                        amount=total_cost,
+                        status='consumed',
+                        market_order=market_order
+                    )
             
             if remaining_qty > 0:
                 messages.warning(request, f'Market order partially executed: {filled_qty}/{quantity_decimal} {trading_pair.base_token} @ avg price {avg_price:.8f}')
@@ -838,6 +981,17 @@ def cancel_order(request, order_id):
             if order.status not in ['pending', 'partial']:
                 messages.error(request, 'Only pending or partially filled orders can be cancelled.')
                 return redirect('my_orders')
+            
+            # Release the balance lock if this is a buy order
+            if order.side == 'buy':
+                balance_locks = BalanceLock.objects.filter(
+                    user=request.user,
+                    limit_order=order,
+                    status='locked'
+                )
+                if balance_locks.exists():
+                    from django.utils import timezone
+                    balance_locks.update(status='released', released_at=timezone.now())
             
             order.status = 'cancelled'
             order.save()
@@ -977,6 +1131,52 @@ def _match_order(order):
                 seller_order=seller_order,
                 tx_hash=f'testnet-{uuid.uuid4()}'
             )
+            
+            # Handle EVR transfers when EVR is the quote token
+            if order.trading_pair.quote_token == 'EVR':
+                evr_amount = fill_qty * execution_price
+                
+                # Send EVR from buyer to seller
+                if order.side == 'buy':
+                    try:
+                        buyer_address = _get_user_primary_address(buyer)
+                        seller_address = _get_user_primary_address(seller)
+                        
+                        if buyer_address and seller_address:
+                            # RPC call: sendfromaddress(from_address, to_address, amount, "", "", false, 6)
+                            tx_hash = RPC.sendfromaddress(
+                                buyer_address,
+                                seller_address,
+                                str(evr_amount),
+                                "",
+                                "",
+                                False,
+                                6
+                            )
+                            print(f"EVR transfer: {evr_amount} from {buyer_address} to {seller_address}, tx: {tx_hash}")
+                        else:
+                            print(f"Warning: Could not get addresses for EVR transfer")
+                    except Exception as e:
+                        print(f"Warning: Error sending EVR via RPC: {e}")
+                
+                # Update seller's EVR balance
+                try:
+                    seller_wallet = seller.user_wallet
+                    seller_wallet.evr_liquidity += evr_amount
+                    seller_wallet.save()
+                except Exception as e:
+                    print(f"Warning: Could not update seller wallet balance: {e}")
+            
+            # Mark buyer's balance lock as consumed for matched trades
+            if order.side == 'buy':
+                # Find and mark the balance lock as consumed
+                balance_locks = BalanceLock.objects.filter(
+                    user=order.user,
+                    limit_order=order,
+                    status='locked'
+                )
+                if balance_locks.exists():
+                    balance_locks.update(status='consumed')
             
             # Update both orders
             order.filled_quantity += fill_qty
