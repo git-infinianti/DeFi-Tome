@@ -16,7 +16,8 @@ from Wallet.wallet import Wallet
 import uuid
 from decouple import config
 
-MARKET_SYNC_ADDRESS = config('MARKET_SYNC_ADDRESS', default='EL5MFdaF8msRaUEDu9mxSNniPSswNmNRgq')
+from django.conf import settings
+MARKET_SYNC_ADDRESS = settings.MARKET_SYNC_ADDRESS
 MARKET_QUOTE_TOKEN = 'EVR'
 
 

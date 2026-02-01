@@ -21,7 +21,7 @@ MARKET_SYNC_ADDRESS = config('MARKET_SYNC_ADDRESS', default='EL5MFdaF8msRaUEDu9m
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-4lyj^1t98-fr9a_6uaw7=^+j60p5wzjgr*=&_!b&n@0vtc4pl$')
+SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-4lyj^1t98-fr9a_6uaw7=^+j60p5wzjgr*=&_!b&n@0vtc4pl$')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
