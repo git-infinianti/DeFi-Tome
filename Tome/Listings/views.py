@@ -14,8 +14,9 @@ from Explorer.rpc import RPC
 from Wallet.models import WalletAddress
 from Wallet.wallet import Wallet
 import uuid
+from decouple import config
 
-MARKET_SYNC_ADDRESS = 'EL5MFdaF8msRaUEDu9mxSNniPSswNmNRgq'
+MARKET_SYNC_ADDRESS = config('MARKET_SYNC_ADDRESS', default=None)
 MARKET_QUOTE_TOKEN = 'EVR'
 
 
