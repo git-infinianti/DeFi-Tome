@@ -280,6 +280,75 @@
             <p>DeFi Tome RESTful API - Solidity Contracts & Evrmore Blockchain</p>
         </div>
         
+        {% if user.is_authenticated %}
+            {% if not user_has_api_key %}
+            <div style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+                <h3 style="color: var(--warning-color); margin-bottom: 0.75rem;">⚠️ API Key Required</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                    You need an API key to access authenticated endpoints. Create one in your settings to get started.
+                </p>
+                <a href="{% url 'settings' %}" style="display: inline-block; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500;">
+                    Go to Settings →
+                </a>
+            </div>
+            {% else %}
+            <div style="background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.5); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+                <h3 style="color: var(--success-color); margin-bottom: 0.75rem;">✓ You're all set!</h3>
+                <p style="color: var(--text-secondary);">
+                    You have active API keys. Use them in your requests to access authenticated endpoints.
+                </p>
+            </div>
+            {% endif %}
+        {% else %}
+        <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+            <h3 style="color: var(--error-color); margin-bottom: 0.75rem;">🔒 Authentication Required</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                Please log in to create an API key and access authenticated endpoints.
+            </p>
+            <a href="{% url 'login' %}" style="display: inline-block; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500;">
+                Log In →
+            </a>
+        </div>
+        {% endif %}
+        
+        <div class="api-section">
+            <h2>🔐 Authentication</h2>
+            
+            <div class="api-endpoint">
+                <p class="endpoint-description">
+                    All endpoints marked as "requires authentication" require an API key. You can create and manage your API keys in the <a href="{% url 'settings' %}" style="color: var(--accent-light);">Settings page</a>.
+                </p>
+                
+                <div class="param-list">
+                    <h4>How to Authenticate:</h4>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Include your API key in one of the following headers:
+                    </p>
+                </div>
+                
+                <div class="code-block">
+                    <pre><code># Option 1: Authorization header with Bearer token
+Authorization: Bearer YOUR_API_KEY_HERE
+
+# Option 2: X-API-Key header
+X-API-Key: YOUR_API_KEY_HERE</code></pre>
+                </div>
+                
+                <div style="margin-top: 1rem;">
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        <strong>Example with curl:</strong>
+                    </p>
+                </div>
+                
+                <div class="code-block">
+                    <pre><code>curl -X POST https://your-domain.com/api/v1/contracts/ \
+  -H "Authorization: Bearer YOUR_API_KEY_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "MyContract", "contract_address": "CONTRACT_ADDR"}'</code></pre>
+                </div>
+            </div>
+        </div>
+        
         <div class="api-section">
             <h2>📋 API Information</h2>
             
@@ -346,9 +415,10 @@
                 <div class="endpoint-header">
                     <span class="http-method method-post">POST</span>
                     <span class="endpoint-path">/api/v1/contracts/</span>
+                    <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #fca5a5;">🔒 Auth Required</span>
                 </div>
                 <p class="endpoint-description">
-                    Deploy a new Solidity contract. Requires authentication.
+                    Deploy a new Solidity contract. Requires API key authentication.
                 </p>
                 <div class="param-list">
                     <h4>Request Body:</h4>
@@ -394,9 +464,10 @@
                 <div class="endpoint-header">
                     <span class="http-method method-post">POST</span>
                     <span class="endpoint-path">/api/v1/contracts/{contract_id}/interact/</span>
+                    <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #fca5a5;">🔒 Auth Required</span>
                 </div>
                 <p class="endpoint-description">
-                    Interact with a deployed contract by calling a function. Requires authentication.
+                    Interact with a deployed contract by calling a function. Requires API key authentication.
                 </p>
                 <div class="param-list">
                     <h4>Request Body:</h4>
@@ -459,9 +530,10 @@
                 <div class="endpoint-header">
                     <span class="http-method method-post">POST</span>
                     <span class="endpoint-path">/api/v1/assets/issue/</span>
+                    <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #fca5a5;">🔒 Auth Required</span>
                 </div>
                 <p class="endpoint-description">
-                    Issue a new asset on the Evrmore blockchain. Requires authentication.
+                    Issue a new asset on the Evrmore blockchain. Requires API key authentication.
                 </p>
                 <div class="param-list">
                     <h4>Request Body:</h4>
@@ -497,9 +569,10 @@
                 <div class="endpoint-header">
                     <span class="http-method method-post">POST</span>
                     <span class="endpoint-path">/api/v1/assets/transfer/</span>
+                    <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #fca5a5;">🔒 Auth Required</span>
                 </div>
                 <p class="endpoint-description">
-                    Transfer an asset to another address. Requires authentication.
+                    Transfer an asset to another address. Requires API key authentication.
                 </p>
                 <div class="param-list">
                     <h4>Request Body:</h4>
@@ -619,9 +692,10 @@
                 <div class="endpoint-header">
                     <span class="http-method method-post">POST</span>
                     <span class="endpoint-path">/api/v1/messages/send/</span>
+                    <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #fca5a5;">🔒 Auth Required</span>
                 </div>
                 <p class="endpoint-description">
-                    Send a message to a channel on the Evrmore blockchain. Requires authentication.
+                    Send a message to a channel on the Evrmore blockchain. Requires API key authentication.
                 </p>
                 <div class="param-list">
                     <h4>Request Body:</h4>

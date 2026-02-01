@@ -5,8 +5,10 @@ from django.contrib import messages
 from django.core.mail import send_mail
 from django.conf import settings as django_settings
 from django.urls import reverse
+from django.http import JsonResponse
 from User.models import EmailVerification
 from .models import UserProfile
+from API.models import APIKey
 
 
 # Helper function to send verification email
@@ -57,9 +59,17 @@ def settings(request):
     # Get or create user profile for theme preference
     user_profile, created = UserProfile.objects.get_or_create(user=request.user)
     
+    # Get user's API keys
+    api_keys = APIKey.objects.filter(user=request.user, is_active=True).order_by('-created_at')
+    
+    # Check for newly created API key in session
+    new_api_key = request.session.pop('new_api_key', None)
+    
     context = {
         'email_verification': email_verification,
         'user_profile': user_profile,
+        'api_keys': api_keys,
+        'new_api_key': new_api_key,
     }
     return render(request, 'settings/index.html', context)
 
@@ -103,4 +113,66 @@ def change_theme(request):
     user_profile.save()
     
     messages.success(request, f'Theme changed to {dict(UserProfile.THEME_CHOICES)[theme]}.')
+    return redirect('settings')
+
+
+@login_required
+@require_http_methods(["POST"])
+def create_api_key(request):
+    """Create a new API key for the user"""
+    name = request.POST.get('name', '').strip()
+    
+    if not name:
+        messages.error(request, 'Please provide a name for the API key.')
+        return redirect('settings')
+    
+    # Generate a new API key
+    api_key_string = APIKey.generate_key()
+    key_hash = APIKey.hash_key(api_key_string)
+    key_prefix = api_key_string[:8]
+    
+    # Create the API key record
+    api_key = APIKey.objects.create(
+        user=request.user,
+        name=name,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        is_active=True
+    )
+    
+    # Store the full key in session temporarily to display it once
+    request.session['new_api_key'] = api_key_string
+    request.session['new_api_key_name'] = name
+    
+    messages.success(request, f'API key "{name}" created successfully! Make sure to copy it now - you won\'t be able to see it again.')
+    return redirect('settings')
+
+
+@login_required
+@require_http_methods(["POST"])
+def revoke_api_key(request, key_id):
+    """Revoke (deactivate) an API key"""
+    try:
+        api_key = APIKey.objects.get(id=key_id, user=request.user)
+        api_key.is_active = False
+        api_key.save()
+        messages.success(request, f'API key "{api_key.name}" has been revoked.')
+    except APIKey.DoesNotExist:
+        messages.error(request, 'API key not found.')
+    
+    return redirect('settings')
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_api_key(request, key_id):
+    """Delete an API key permanently"""
+    try:
+        api_key = APIKey.objects.get(id=key_id, user=request.user)
+        key_name = api_key.name
+        api_key.delete()
+        messages.success(request, f'API key "{key_name}" has been deleted.')
+    except APIKey.DoesNotExist:
+        messages.error(request, 'API key not found.')
+    
     return redirect('settings')

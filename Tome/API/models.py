@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+import secrets
+import hashlib
 
 
 class SolidityContract(models.Model):
@@ -107,3 +109,52 @@ class ContractAsset(models.Model):
     
     def __str__(self):
         return f"{self.asset_name} (Contract: {self.contract.name})"
+
+
+class APIKey(models.Model):
+    """
+    Model to store API keys for authenticated API access.
+    Each user can have multiple API keys for different applications.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_keys')
+    name = models.CharField(max_length=255, help_text="Descriptive name for this API key")
+    
+    # Store hashed key for security
+    key_hash = models.CharField(max_length=64, unique=True, help_text="SHA256 hash of the API key")
+    
+    # Display prefix (first 8 chars) for user reference
+    key_prefix = models.CharField(max_length=8, help_text="First 8 characters of key for identification")
+    
+    # Key status
+    is_active = models.BooleanField(default=True, help_text="Whether this API key is active")
+    
+    # Usage tracking
+    last_used = models.DateTimeField(null=True, blank=True, help_text="Last time this key was used")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['key_hash']),
+            models.Index(fields=['user', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.key_prefix}...)"
+    
+    @staticmethod
+    def generate_key():
+        """Generate a secure random API key"""
+        return secrets.token_urlsafe(32)
+    
+    @staticmethod
+    def hash_key(key):
+        """Hash an API key using SHA256"""
+        return hashlib.sha256(key.encode()).hexdigest()
+    
+    def verify_key(self, key):
+        """Verify if a provided key matches this API key"""
+        return self.key_hash == self.hash_key(key)
