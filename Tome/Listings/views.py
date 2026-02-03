@@ -13,6 +13,7 @@ from .models import (
 from Explorer.rpc import RPC
 from Wallet.models import WalletAddress
 from Wallet.wallet import Wallet
+from Wallet.asset_tracking import sync_tracked_assets
 import uuid
 
 from django.conf import settings
@@ -152,6 +153,7 @@ def _get_user_asset_balances(user):
         if amount_decimal > 0:
             asset_balances[symbol.upper()] = amount_decimal
 
+    sync_tracked_assets(user, asset_balances)
     return asset_balances, None
 
 

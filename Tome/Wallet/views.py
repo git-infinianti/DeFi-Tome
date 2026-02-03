@@ -7,6 +7,7 @@ from django.views.decorators.http import require_http_methods
 from decimal import Decimal, InvalidOperation
 from .models import UserWallet, WalletAddress
 from .wallet import Wallet
+from .asset_tracking import sync_tracked_assets
 from .rpc import RPC
 from hdwallet.entropies import BIP39Entropy
 from hdwallet.derivations import BIP44Derivation, CHANGES
@@ -101,6 +102,7 @@ def _get_user_asset_balances(user):
         if amount_decimal > 0:
             asset_balances[symbol.upper()] = amount_decimal
 
+    sync_tracked_assets(user, asset_balances)
     return asset_balances, None
 
 
