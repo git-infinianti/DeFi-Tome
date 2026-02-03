@@ -245,6 +245,11 @@ def send_funds(request):
         return redirect('portfolio')
     
     asset_balances, _ = _get_user_asset_balances(request.user)
+    evr_balance_sats = _sync_user_evr_balance(user_wallet)
+    if evr_balance_sats is not None:
+        evr_balance = evr_balance_sats * Decimal('1e-8')
+    else:
+        evr_balance = (user_wallet.evr_liquidity or Decimal('0')) * Decimal('1e-8')
     asset_options = [
         {
             'symbol': symbol,
@@ -256,6 +261,7 @@ def send_funds(request):
     ]
 
     if request.method == 'POST':
+        currency = request.POST.get('currency', 'EVR').strip().upper()
         recipient_address = request.POST.get('recipient_address', '').strip()
         amount = request.POST.get('amount', '').strip()
         
@@ -265,12 +271,25 @@ def send_funds(request):
             return redirect('send_funds')
         
         try:
-            amount = float(amount)
-            if amount <= 0:
+            amount_decimal = Decimal(str(amount))
+            if amount_decimal <= 0:
                 raise ValueError
-        except ValueError:
+        except (ValueError, InvalidOperation):
             messages.error(request, 'Invalid amount specified.')
             return redirect('send_funds')
+
+        if currency == 'EVR':
+            if amount_decimal > evr_balance:
+                messages.error(request, 'Amount exceeds your EVR balance.')
+                return redirect('send_funds')
+        else:
+            asset_balance = asset_balances.get(currency)
+            if asset_balance is None:
+                messages.error(request, 'Selected asset not found in your wallet.')
+                return redirect('send_funds')
+            if amount_decimal > asset_balance:
+                messages.error(request, 'Amount exceeds your asset balance.')
+                return redirect('send_funds')
         
         # Get wallet instance
         wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
@@ -278,15 +297,16 @@ def send_funds(request):
         
         # Create and send transaction via RPC
         try:
-            txid = RPC.sendtoaddress(recipient_address, amount, wallet)
-            messages.success(request, f'Successfully sent {amount} to {recipient_address}. Transaction ID: {txid}')
+            txid = RPC.sendtoaddress(recipient_address, float(amount_decimal), wallet)
+            messages.success(request, f'Successfully sent {amount_decimal} to {recipient_address}. Transaction ID: {txid}')
         except Exception as e:
             messages.error(request, f'Error sending funds: {str(e)}')
         
         return redirect('send_funds')
     
     return render(request, 'portfolio/send.html', {
-        'asset_options': asset_options
+        'asset_options': asset_options,
+        'evr_balance': evr_balance
     })
 
 
