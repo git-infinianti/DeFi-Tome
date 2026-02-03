@@ -414,7 +414,10 @@
                     
                     <div class="form-group">
                         <label for="recipient_address">Recipient Address *</label>
-                        <input type="text" id="recipient_address" name="recipient_address" required placeholder="Enter recipient's wallet address">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="text" id="recipient_address" name="recipient_address" required placeholder="Enter recipient's wallet address" style="flex: 1;">
+                            <span id="address-status" title="Address validation" style="width: 12px; height: 12px; border-radius: 50%; background: #9ca3af; display: inline-block;"></span>
+                        </div>
                         <small>The wallet address where you want to send funds</small>
                     </div>
                     
@@ -508,6 +511,51 @@
                     console.error('Failed to copy:', err);
                 });
             }
+        }
+
+        const addressInput = document.getElementById('recipient_address');
+        const addressStatus = document.getElementById('address-status');
+        let addressTimer = null;
+
+        function setAddressStatus(state) {
+            if (state === 'valid') {
+                addressStatus.style.background = '#22c55e';
+            } else if (state === 'invalid') {
+                addressStatus.style.background = '#ef4444';
+            } else {
+                addressStatus.style.background = '#9ca3af';
+            }
+        }
+
+        async function validateAddress(value) {
+            if (!value) {
+                setAddressStatus('idle');
+                return;
+            }
+
+            try {
+                const response = await fetch(`{% url 'validate_address' %}?address=${encodeURIComponent(value)}`);
+                const data = await response.json();
+                if (data && data.isvalid === true) {
+                    setAddressStatus('valid');
+                } else {
+                    setAddressStatus('invalid');
+                }
+            } catch (e) {
+                setAddressStatus('invalid');
+            }
+        }
+
+        if (addressInput && addressStatus) {
+            addressInput.addEventListener('input', () => {
+                setAddressStatus('idle');
+                if (addressTimer) {
+                    clearTimeout(addressTimer);
+                }
+                addressTimer = setTimeout(() => {
+                    validateAddress(addressInput.value.trim());
+                }, 400);
+            });
         }
         
         // Load address if receive tab is active on page load

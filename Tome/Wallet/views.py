@@ -1,7 +1,9 @@
 from django.shortcuts import render, redirect
+from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
+from django.views.decorators.http import require_http_methods
 from decimal import Decimal, InvalidOperation
 from .models import UserWallet, WalletAddress
 from .wallet import Wallet
@@ -286,3 +288,21 @@ def send_funds(request):
     return render(request, 'portfolio/send.html', {
         'asset_options': asset_options
     })
+
+
+@login_required
+@require_http_methods(["GET"])
+def validate_address(request):
+    """Validate an Evrmore address via RPC."""
+    address = request.GET.get('address', '').strip()
+    if not address:
+        return JsonResponse({'isvalid': False})
+
+    try:
+        result = RPC.validateaddress(address)
+        if isinstance(result, dict) and 'isvalid' in result:
+            return JsonResponse({'isvalid': bool(result['isvalid'])})
+    except Exception:
+        pass
+
+    return JsonResponse({'isvalid': False})
