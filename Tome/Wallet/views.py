@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from .models import UserWallet, WalletAddress
 from .wallet import Wallet
 from .rpc import RPC
@@ -49,6 +49,65 @@ def _sync_user_evr_balance(user_wallet):
     except Exception as e:
         print(f"Error syncing balance for user_id {user_wallet.user_id}: {str(e)}")
         return None
+
+
+def _get_user_primary_address(user):
+    """Get the user's primary wallet address for RPC asset balance checks."""
+    user_wallet = getattr(user, 'user_wallet', None)
+    if not user_wallet:
+        return None
+
+    address_record = WalletAddress.objects.filter(
+        wallet=user_wallet,
+        is_change=False
+    ).order_by('account', 'index').first()
+
+    if address_record:
+        return address_record.address
+
+    # Fallback to deriving address from wallet entropy/passphrase
+    try:
+        wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+        wallet = wallet_instance.get_wallet()
+        return wallet.address()
+    except Exception:
+        return None
+
+
+def _get_user_asset_balances(user):
+    """Return a dict of asset balances for the user's primary address."""
+    address = _get_user_primary_address(user)
+    if not address:
+        return {}, 'no_wallet'
+
+    try:
+        balances = RPC.listassetbalancesbyaddress(address)
+    except Exception as e:
+        return {}, f'rpc_error: {str(e)}'
+
+    if not isinstance(balances, dict):
+        return {}, 'invalid_response'
+
+    asset_balances = {}
+    for symbol, amount in balances.items():
+        if not symbol or not isinstance(symbol, str):
+            continue
+        try:
+            amount_decimal = Decimal(str(amount))
+        except (ValueError, InvalidOperation):
+            continue
+        if amount_decimal > 0:
+            asset_balances[symbol.upper()] = amount_decimal
+
+    return asset_balances, None
+
+
+def _format_asset_amount(amount):
+    """Format Decimal amounts by trimming trailing zeros or flooring to int if whole."""
+    amount_str = format(amount, 'f')
+    if '.' in amount_str:
+        amount_str = amount_str.rstrip('0').rstrip('.')
+    return amount_str or '0'
 
 
 # Create your views here.
@@ -183,6 +242,17 @@ def send_funds(request):
         messages.error(request, 'No wallet found to send funds.')
         return redirect('portfolio')
     
+    asset_balances, _ = _get_user_asset_balances(request.user)
+    asset_options = [
+        {
+            'symbol': symbol,
+            'balance_display': _format_asset_amount(amount),
+            'balance_value': str(amount)
+        }
+        for symbol, amount in sorted(asset_balances.items())
+        if symbol != 'EVR'
+    ]
+
     if request.method == 'POST':
         recipient_address = request.POST.get('recipient_address', '').strip()
         amount = request.POST.get('amount', '').strip()
@@ -213,4 +283,6 @@ def send_funds(request):
         
         return redirect('send_funds')
     
-    return render(request, 'portfolio/send.html')
+    return render(request, 'portfolio/send.html', {
+        'asset_options': asset_options
+    })

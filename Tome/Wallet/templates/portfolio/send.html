@@ -405,9 +405,9 @@
                         <label for="currency">Currency *</label>
                         <select id="currency" name="currency" required>
                             <option value="EVR" selected>EVR (Evrmore)</option>
-                            <option value="BTC">BTC (Bitcoin)</option>
-                            <option value="ETH">ETH (Ethereum)</option>
-                            <option value="USDT">USDT (Tether)</option>
+                            {% for asset in asset_options %}
+                                <option value="{{ asset.symbol }}">{{ asset.symbol }} ({{ asset.balance_display }})</option>
+                            {% endfor %}
                         </select>
                         <small>Select the currency you want to send</small>
                     </div>
