@@ -483,3 +483,173 @@ class InterestRateSnapshot(models.Model):
         indexes = [
             models.Index(fields=['token_symbol', 'rate_type', '-timestamp']),
         ]
+
+class DeFiEvent(models.Model):
+    """General event log for DeFi actions"""
+    EVENT_TYPE_CHOICES = [
+        ('swap', 'Swap'),
+        ('liquidity_add', 'Liquidity Add'),
+        ('liquidity_remove', 'Liquidity Remove'),
+        ('borrow', 'Borrow'),
+        ('repay', 'Repay'),
+        ('liquidation', 'Liquidation'),
+        ('bond_purchase', 'Bond Purchase'),
+        ('savings_deposit', 'Savings Deposit'),
+        ('other', 'Other'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='defi_events')
+    event_type = models.CharField(max_length=20, choices=EVENT_TYPE_CHOICES)
+    description = models.TextField()
+    related_pool = models.ForeignKey(LendingPool, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+    related_loan = models.ForeignKey(Loan, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+    related_swap = models.ForeignKey(SwapTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"DeFiEvent({self.user.username}, {self.event_type}, {self.created_at})"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+class DeFiAnalytics(models.Model):
+    """Aggregated analytics data for DeFi activity"""
+    date = models.DateField(db_index=True)
+    total_volume = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    total_liquidity = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    total_borrowed = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    total_interest_accrued = models.DecimalField(max_digits=30, decimal_places=8, default=0)
+    unique_users = models.IntegerField(default=0)
+    
+    def __str__(self):
+        return f"DeFiAnalytics({self.date}, volume={self.total_volume})"
+    
+    class Meta:
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['date']),
+        ]
+        
+class DeFiConfig(models.Model):
+    """Global configuration for DeFi features"""
+    key = models.CharField(max_length=100, unique=True)
+    value = models.CharField(max_length=500)
+    description = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"DeFiConfig({self.key}={self.value})"
+    
+    class Meta:
+        ordering = ['key']
+        
+class DeFiAnnouncement(models.Model):
+    """Announcements related to DeFi features"""
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"DeFiAnnouncement({self.title}, active={self.is_active})"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+class DeFiFAQ(models.Model):
+    """Frequently Asked Questions related to DeFi features"""
+    question = models.CharField(max_length=300)
+    answer = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"DeFiFAQ({self.question}, active={self.is_active})"
+    
+    class Meta:
+        ordering = ['-created_at']
+        
+class DeFiTutorial(models.Model):
+    """Tutorials for using DeFi features"""
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"DeFiTutorial({self.title}, active={self.is_active})"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+class DeFiGovernanceProposal(models.Model):
+    """Governance proposals for DeFi protocol changes"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('active', 'Active'),
+        ('passed', 'Passed'),
+        ('rejected', 'Rejected'),
+        ('executed', 'Executed'),
+    ]
+    
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    proposer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='proposed_governance')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    votes_for = models.IntegerField(default=0)
+    votes_against = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"DeFiGovernanceProposal({self.title}, status={self.status})"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+class Contract(models.Model):
+    """Smart contract details for DeFi features"""
+    name = models.CharField(max_length=100)
+    address = models.CharField(max_length=100, unique=True)
+    abi = models.TextField()
+    network = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Contract({self.name}, {self.address})"
+    
+    class Meta:
+        ordering = ['name']
+        
+class ContractAudit(models.Model):
+    """Audit reports for DeFi smart contracts"""
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='audits')
+    auditor_name = models.CharField(max_length=100)
+    report_url = models.URLField()
+    summary = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return f"ContractAudit({self.contract.name} by {self.auditor_name})"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+class ContractInteraction(models.Model):
+    """Record of user interactions with DeFi smart contracts"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contract_interactions')
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='interactions')
+    method = models.CharField(max_length=100)
+    parameters = models.TextField()
+    tx_hash = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return f"ContractInteraction({self.user.username} -> {self.contract.name}.{self.method})"
+    
+    class Meta:
+        ordering = ['-created_at']
