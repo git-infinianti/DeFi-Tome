@@ -377,10 +377,10 @@
                         readonly
                         required
                     >
-                    <div class="help-text">Auto-filled from your wallet balance for the selected asset.</div>
+                    <div class="help-text" id="quantity-help-text">Auto-filled from your wallet balance for the selected asset.</div>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group" id="token-offered-group">
                     <label for="token_offered">Token Offered *</label>
                     <select id="token_offered" name="token_offered" required>
                         <option value="">Select a token</option>
@@ -479,9 +479,18 @@
             const priceTokenSpan = document.getElementById('price-token');
             const isNftCheckbox = document.getElementById('is_nft');
             const nftImageGroup = document.getElementById('nft-image-group');
+            const tokenOfferedGroup = document.getElementById('token-offered-group');
+            const quantityHelpText = document.getElementById('quantity-help-text');
 
             const updateQuantity = () => {
                 if (!tokenSelect || !quantityInput) return;
+                
+                // If NFT is checked, lock quantity to 1
+                if (isNftCheckbox && isNftCheckbox.checked) {
+                    quantityInput.value = '1.00000000';
+                    return;
+                }
+                
                 const selectedOption = tokenSelect.options[tokenSelect.selectedIndex];
                 const balance = selectedOption ? selectedOption.dataset.balance : '';
                 if (!balance) {
@@ -499,7 +508,30 @@
 
             const toggleNftGroup = () => {
                 if (!isNftCheckbox || !nftImageGroup) return;
-                nftImageGroup.style.display = isNftCheckbox.checked ? 'block' : 'none';
+                const isNft = isNftCheckbox.checked;
+                
+                // Show/hide NFT image group
+                nftImageGroup.style.display = isNft ? 'block' : 'none';
+                
+                // Hide/show token offered group
+                if (tokenOfferedGroup) {
+                    tokenOfferedGroup.style.display = isNft ? 'none' : 'block';
+                    // Remove required attribute when hidden
+                    if (tokenSelect) {
+                        tokenSelect.required = !isNft;
+                    }
+                }
+                
+                // Update quantity field
+                if (quantityInput && quantityHelpText) {
+                    if (isNft) {
+                        quantityInput.value = '1.00000000';
+                        quantityHelpText.textContent = 'NFTs are unique 1-of-1 assets with quantity locked at 1.';
+                    } else {
+                        quantityHelpText.textContent = 'Auto-filled from your wallet balance for the selected asset.';
+                        updateQuantity();
+                    }
+                }
             };
 
             if (tokenSelect) {

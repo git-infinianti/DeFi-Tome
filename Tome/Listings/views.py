@@ -345,19 +345,36 @@ def create_listing(request):
         is_nft = request.POST.get('is_nft', 'false').lower() == 'true'
         nft_image_ipfs_cid = request.POST.get('nft_image_ipfs_cid', '').strip() if is_nft else None
 
-        selected_balance = asset_balances.get(token_offered)
-        quantity = None
-        if selected_balance is not None:
-            quantity = _format_asset_amount(selected_balance)
+        # For NFTs, set token_offered to 'NFT' and quantity to 1
+        if is_nft:
+            token_offered = 'NFT'
+            quantity = '1'
+            selected_balance = Decimal('1')
+        else:
+            selected_balance = asset_balances.get(token_offered)
+            quantity = None
+            if selected_balance is not None:
+                quantity = _format_asset_amount(selected_balance)
         
-        # Validate token fields are mandatory and alphanumeric
-        if not token_offered or not preferred_token:
-            messages.error(request, 'Token offered and preferred token are required.')
-            return render(request, 'listings/create_listing.html', {
-                'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
-            })
+        # Validate token fields are mandatory and alphanumeric (skip token_offered validation for NFTs)
+        if is_nft:
+            if not preferred_token:
+                messages.error(request, 'Preferred token is required.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users,
+                    'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
+                })
+        else:
+            if not token_offered or not preferred_token:
+                messages.error(request, 'Token offered and preferred token are required.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
+                })
+        
         
         # NFT validation: must be 1 of 1, and image IPFS CID is optional but valid if provided
         if is_nft:
@@ -370,22 +387,34 @@ def create_listing(request):
                     'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
                 })
         
-        if not token_offered.isalnum() or not preferred_token.isalnum():
-            messages.error(request, 'Token symbols must be alphanumeric only.')
-            return render(request, 'listings/create_listing.html', {
-                'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
-            })
+        # Validate token symbols are alphanumeric (skip token_offered for NFTs)
+        if is_nft:
+            if not preferred_token.isalnum():
+                messages.error(request, 'Token symbols must be alphanumeric only.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users,
+                    'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
+                })
+        else:
+            if not token_offered.isalnum() or not preferred_token.isalnum():
+                messages.error(request, 'Token symbols must be alphanumeric only.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
+                })
         
-        # Validate tokens are different
-        if token_offered == preferred_token:
+        # Validate tokens are different (skip for NFTs)
+        if not is_nft and token_offered == preferred_token:
             messages.error(request, 'Cannot swap the same token for itself.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
                 'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
+        
         
         # Validate required fields
         if not title or not description or not price:
@@ -413,29 +442,32 @@ def create_listing(request):
                 'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
 
-        if not asset_balances:
-            messages.error(request, 'No assets found in your wallet to list.')
-            return render(request, 'listings/create_listing.html', {
-                'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
-            })
+        # Skip wallet balance checks for NFTs
+        if not is_nft:
+            if not asset_balances:
+                messages.error(request, 'No assets found in your wallet to list.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
+                })
 
-        if token_offered not in asset_balances:
-            messages.error(request, 'Selected token is not available in your wallet.')
-            return render(request, 'listings/create_listing.html', {
-                'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
-            })
+            if token_offered not in asset_balances:
+                messages.error(request, 'Selected token is not available in your wallet.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
+                })
 
-        if selected_balance is None or selected_balance <= 0:
-            messages.error(request, 'Selected token has no available balance.')
-            return render(request, 'listings/create_listing.html', {
-                'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                'token_offered': token_offered, 'preferred_token': preferred_token,
-                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
-            })
+            if selected_balance is None or selected_balance <= 0:
+                messages.error(request, 'Selected token has no available balance.')
+                return render(request, 'listings/create_listing.html', {
+                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                    'token_offered': token_offered, 'preferred_token': preferred_token,
+                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
+                })
+        
         
         # Validate numeric fields
         try:
