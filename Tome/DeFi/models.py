@@ -4,6 +4,121 @@ from decimal import Decimal
 
 # Create your models here.
 
+class VaultAsset(models.Model):
+    """
+    Vault asset for advanced DeFi operations with toll/fee features.
+    Vault assets are Evrmore assets with built-in transfer fees (tolls) for DeFi applications.
+    """
+    symbol = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    
+    # Vault configuration
+    toll_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), 
+                                         help_text="Percentage fee on transfers (0-100)")
+    toll_address = models.CharField(max_length=100, help_text="Address receiving toll payments")
+    
+    # Asset properties
+    total_supply = models.DecimalField(max_digits=30, decimal_places=8, default=Decimal('0'))
+    is_reissuable = models.BooleanField(default=False)
+    units = models.IntegerField(default=8, help_text="Decimal places (0-8)")
+    ipfs_hash = models.CharField(max_length=255, blank=True, null=True)
+    
+    # DeFi usage tracking
+    total_toll_collected = models.DecimalField(max_digits=30, decimal_places=8, default=Decimal('0'),
+                                               help_text="Total toll collected from transfers")
+    transfer_count = models.IntegerField(default=0, help_text="Total number of transfers")
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"VaultAsset({self.symbol}, toll={self.toll_percentage}%)"
+    
+    class Meta:
+        ordering = ['symbol']
+
+
+class VaultCollateral(models.Model):
+    """
+    Collateral locked in vault assets for lending/borrowing DeFi operations.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='vault_collateral')
+    vault_asset = models.ForeignKey(VaultAsset, on_delete=models.PROTECT, related_name='collateral_positions')
+    
+    # Collateral amounts
+    collateral_amount = models.DecimalField(max_digits=30, decimal_places=8)
+    borrowed_amount = models.DecimalField(max_digits=30, decimal_places=8, default=Decimal('0'))
+    
+    # Collateral configuration
+    collateral_ratio = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('150'),
+                                          help_text="Required collateral ratio (e.g., 150 = 150%)")
+    liquidation_threshold = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('120'),
+                                               help_text="Liquidation threshold (e.g., 120 = 120%)")
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"VaultCollateral({self.user.username}, {self.collateral_amount} {self.vault_asset.symbol})"
+    
+    @property
+    def current_ratio(self):
+        """Calculate current collateral ratio"""
+        if self.borrowed_amount == 0:
+            return Decimal('999')  # Very high ratio if no borrowed amount
+        return (self.collateral_amount / self.borrowed_amount) * Decimal('100')
+    
+    @property
+    def is_liquidatable(self):
+        """Check if position can be liquidated"""
+        return self.current_ratio < self.liquidation_threshold
+    
+    class Meta:
+        ordering = ['-created_at']
+
+
+class VaultEscrow(models.Model):
+    """
+    Escrow for vault asset transactions in P2P swaps and DeFi operations.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('locked', 'Locked'),
+        ('released', 'Released'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    initiator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='initiated_vault_escrows')
+    counterparty = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_vault_escrows',
+                                    null=True, blank=True)
+    vault_asset = models.ForeignKey(VaultAsset, on_delete=models.PROTECT, related_name='escrows')
+    
+    # Escrow details
+    amount = models.DecimalField(max_digits=30, decimal_places=8)
+    toll_amount = models.DecimalField(max_digits=30, decimal_places=8, default=Decimal('0'),
+                                     help_text="Toll amount deducted on release")
+    
+    # Status and timing
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+    
+    # Blockchain reference
+    tx_hash = models.CharField(max_length=100, blank=True)
+    
+    def __str__(self):
+        return f"VaultEscrow({self.amount} {self.vault_asset.symbol}, {self.status})"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+
 class TestnetConfig(models.Model):
     """Configuration for the DeFi testnet"""
     name = models.CharField(max_length=100, default='DeFi Tome Testnet')
