@@ -51,7 +51,7 @@ class ContractInteraction(models.Model):
     This logs function calls and transactions to contracts.
     """
     contract = models.ForeignKey(SolidityContract, on_delete=models.CASCADE, related_name='interactions')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contract_interactions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_contract_interactions')
     
     # Interaction details
     function_name = models.CharField(max_length=255, help_text="Name of function called")

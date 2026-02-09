@@ -3,6 +3,12 @@ from evrmore_rpc import EvrmoreClient
 
 RPC = EvrmoreClient(datadir=config('RPC_DATADIR', default='/tmp/evrmore'))
 
+# Create inputs and outputs for a raw transaction
+def itxo(txid, vout):
+    return {"txid": txid, "vout": vout}
+
+def utxo(address, amount):
+    return {address: amount}
 
 def create_raw_transaction(inputs, outputs):
     """

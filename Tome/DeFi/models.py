@@ -641,7 +641,7 @@ class ContractAudit(models.Model):
 
 class ContractInteraction(models.Model):
     """Record of user interactions with DeFi smart contracts"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contract_interactions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='defi_contract_interactions')
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='interactions')
     method = models.CharField(max_length=100)
     parameters = models.TextField()
