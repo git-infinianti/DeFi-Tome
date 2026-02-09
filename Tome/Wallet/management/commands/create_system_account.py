@@ -112,7 +112,7 @@ class Command(BaseCommand):
                 index=idx,
                 defaults={
                     'address': address_str,
-                    'wif': wallet_obj.private_key(),
+                    'wif': wallet_obj.wif(),
                     'account': user_wallet.id or 0,
                     'is_change': False,
                 }

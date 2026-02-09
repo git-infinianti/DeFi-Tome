@@ -132,12 +132,12 @@ def portfolio(request):
             # Validate wallet name
             if not wallet_name:
                 messages.error(request, 'Wallet name is required.')
-                return render(request, 'portfolio/index.html', {'user_wallet': user_wallet})
+                return render(request, 'portfolio/wallet.html', {'user_wallet': user_wallet})
             
             # Validate wallet name length
             if len(wallet_name) > 100:
                 messages.error(request, 'Wallet name must be 100 characters or less.')
-                return render(request, 'portfolio/index.html', {'user_wallet': user_wallet})
+                return render(request, 'portfolio/wallet.html', {'user_wallet': user_wallet})
             
             # Start by generating new entropy
             entropy = BIP39Entropy.generate(128)
@@ -176,7 +176,7 @@ def portfolio(request):
     context = {
         'user_wallet': user_wallet,
     }
-    return render(request, 'portfolio/index.html', context)
+    return render(request, 'portfolio/wallet.html', context)
 
 @login_required
 def sync_balance(request):

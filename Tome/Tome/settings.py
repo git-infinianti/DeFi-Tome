@@ -89,6 +89,9 @@ DATABASES = {
     }
 }
 
+DEFAULT_FILE_STORAGE = 'ipfs_storage.InterPlanetaryFileSystemStorage'
+IPFS_STORAGE_API_URL = config('IPFS_STORAGE_API_URL', default='http://localhost:5001/api/v0/')
+IPFS_GATEWAY_API_URL = config('IPFS_GATEWAY_API_URL', default='http://localhost:8080/ipfs/')    
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -144,3 +147,4 @@ EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@defitome.com')
+

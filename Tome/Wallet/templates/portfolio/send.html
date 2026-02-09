@@ -404,9 +404,9 @@
                     <div class="form-group">
                         <label for="currency">Currency *</label>
                         <select id="currency" name="currency" required>
-                            <option value="EVR" data-balance="{{ evr_balance|default:'0' }}" selected>EVR (Evrmore)</option>
+                            <option value="EVR" data-balance="{{ evr_balance|default:'0' }}" selected>EVR</option>
                             {% for asset in asset_options %}
-                                <option value="{{ asset.symbol }}" data-balance="{{ asset.balance_value }}">{{ asset.symbol }} ({{ asset.balance_display }})</option>
+                                <option value="{{ asset.symbol }}" data-balance="{{ asset.balance_value }}">{{ asset.symbol }}</option>
                             {% endfor %}
                         </select>
                         <small>Select the currency you want to send</small>
