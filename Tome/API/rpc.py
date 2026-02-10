@@ -132,6 +132,131 @@ class EvrmoreRPC:
                                                 asset_change_address)
     
     # ============================================================
+    # VAULT & NFT ASSET COMMANDS
+    # ============================================================
+    
+    def issue_vault_asset(self, asset_name, qty, to_address="", change_address="", 
+                         units=0, reissuable=False, has_ipfs=False, ipfs_hash="",
+                         toll_percentage=0, toll_address=""):
+        """
+        Issue a vault asset with toll/fee features for DeFi operations.
+        
+        Args:
+            asset_name: Name of the vault asset
+            qty: Quantity to issue
+            to_address: Destination address (default: new address in wallet)
+            change_address: Change address (default: new address in wallet)
+            units: Decimal places (0-8)
+            reissuable: Whether asset can be reissued
+            has_ipfs: Whether asset has IPFS metadata
+            ipfs_hash: IPFS hash for metadata
+            toll_percentage: Transfer fee percentage (0-100)
+            toll_address: Address to receive toll payments
+        
+        Returns:
+            Transaction hash
+            
+        Note:
+            Toll parameters are prepared for Evrmore Core V2 release.
+            Current implementation uses standard asset issuance.
+            
+            TODO: When Evrmore Core V2 is released with toll support, update to:
+            - Add toll_percentage to RPC parameters
+            - Add toll_address to RPC parameters
+            - Enable NFT royalty features
+        """
+        # Build the issue command with basic parameters
+        # Toll support will be added in future Evrmore Core V2 release
+        
+        return self.issue_asset(asset_name, qty, to_address, change_address, 
+                               units, reissuable, has_ipfs, ipfs_hash)
+    
+    def get_vault_toll_info(self, asset_name):
+        """
+        Get toll information for a vault asset.
+        
+        Args:
+            asset_name: Name of the vault asset
+            
+        Returns:
+            Dict with toll_percentage, toll_address, total_toll_collected
+        """
+        asset_data = self.get_asset_data(asset_name)
+        
+        # Extract toll info from asset data when available
+        toll_info = {
+            'has_toll': asset_data.get('has_toll', False),
+            'toll_percentage': asset_data.get('toll_percentage', 0),
+            'toll_address': asset_data.get('toll_address', ''),
+            'total_toll_collected': asset_data.get('total_toll_collected', 0)
+        }
+        
+        return toll_info
+    
+    def issue_nft_asset(self, asset_name, to_address="", change_address="", 
+                       ipfs_hash="", description=""):
+        """
+        Issue an NFT (1-of-1 unique asset with IPFS metadata).
+        
+        Args:
+            asset_name: Name of the NFT asset
+            to_address: Destination address
+            change_address: Change address
+            ipfs_hash: IPFS hash for NFT metadata/image
+            description: NFT description
+            
+        Returns:
+            Transaction hash
+        """
+        # NFT: quantity=1, units=0, reissuable=False, has_ipfs=True
+        return self.issue_asset(
+            asset_name=asset_name,
+            qty=1,
+            to_address=to_address,
+            change_address=change_address,
+            units=0,
+            reissuable=False,
+            has_ipfs=True,
+            ipfs_hash=ipfs_hash
+        )
+    
+    def verify_asset_ownership(self, asset_name, address):
+        """
+        Verify ownership of an asset at a specific address.
+        
+        Args:
+            asset_name: Name of the asset
+            address: Address to check
+            
+        Returns:
+            Dict with ownership info
+        """
+        try:
+            balances = self.list_asset_balances_by_address(address)
+            
+            for asset_info in balances:
+                if asset_info.get('assetName') == asset_name:
+                    return {
+                        'owns_asset': True,
+                        'balance': asset_info.get('balance', 0),
+                        'asset_name': asset_name,
+                        'address': address
+                    }
+            
+            return {
+                'owns_asset': False,
+                'balance': 0,
+                'asset_name': asset_name,
+                'address': address
+            }
+        except Exception as e:
+            return {
+                'owns_asset': False,
+                'balance': 0,
+                'error': str(e)
+            }
+    
+    # ============================================================
     # BLOCKCHAIN COMMANDS
     # ============================================================
     

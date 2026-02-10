@@ -37,6 +37,8 @@ class TrackedAsset(models.Model):
     ASSET_TYPE_SUB_QUALIFIER = 'sub_qualifier'
     ASSET_TYPE_RESTRICTED = 'restricted'
     ASSET_TYPE_ADMIN = 'administrator'
+    ASSET_TYPE_NFT = 'nft'
+    ASSET_TYPE_VAULT = 'vault'
 
     ASSET_TYPE_CHOICES = (
         (ASSET_TYPE_MAIN, 'Main'),
@@ -47,11 +49,22 @@ class TrackedAsset(models.Model):
         (ASSET_TYPE_SUB_QUALIFIER, 'Sub Qualifier'),
         (ASSET_TYPE_RESTRICTED, 'Restricted'),
         (ASSET_TYPE_ADMIN, 'Administrator'),
+        (ASSET_TYPE_NFT, 'NFT'),
+        (ASSET_TYPE_VAULT, 'Vault'),
     )
 
     symbol = models.CharField(max_length=255, unique=True)
     asset_type = models.CharField(max_length=32, choices=ASSET_TYPE_CHOICES, default=ASSET_TYPE_MAIN)
     total_quantity = models.DecimalField(max_digits=30, decimal_places=8, default=Decimal('0'))
+    
+    # NFT/Vault specific fields
+    ipfs_hash = models.CharField(max_length=255, blank=True, null=True, help_text="IPFS hash for asset metadata")
+    has_toll = models.BooleanField(default=False, help_text="Whether asset has transfer toll enabled")
+    toll_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), help_text="Toll percentage for transfers")
+    toll_address = models.CharField(max_length=100, blank=True, null=True, help_text="Address receiving toll payments")
+    is_reissuable = models.BooleanField(default=True, help_text="Whether asset can be reissued")
+    units = models.IntegerField(default=0, help_text="Decimal places for asset divisibility (0-8)")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
