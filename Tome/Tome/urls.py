@@ -26,4 +26,5 @@ urlpatterns = [
     path('explorer/', include('Explorer.urls')),
     path('api/', include('API.urls')),
     path('defi/', include('DeFi.urls')),
+    path('media/', include('Media.urls')),
 ]
