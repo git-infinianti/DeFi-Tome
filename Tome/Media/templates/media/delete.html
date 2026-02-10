@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi Tome - Delete Media</title>
+    <style>
+        :root, .theme-dark, .theme- {
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: rgba(148, 163, 184, 0.2);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #60a5fa;
+            --accent-purple: #a78bfa;
+            --error-text: #fca5a5;
+        }
+        
+        .theme-light {
+            --bg-gradient-start: #f8fafc;
+            --bg-gradient-end: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --border-color: rgba(15, 23, 42, 0.2);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #2563eb;
+            --accent-purple: #9333ea;
+            --error-text: #dc2626;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-primary);
+        }
+        
+        .page-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .page-title h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--error-text), #f87171);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .page-title p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+        
+        .delete-form {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2.5rem;
+        }
+        
+        .warning-box {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid var(--error-text);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .warning-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .warning-box h3 {
+            color: var(--error-text);
+            margin-bottom: 0.75rem;
+        }
+        
+        .warning-box p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        
+        .info-section {
+            margin-bottom: 2rem;
+        }
+        
+        .info-item {
+            padding: 1rem;
+            background: rgba(59, 130, 246, 0.05);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .info-label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .info-value {
+            color: var(--text-primary);
+            font-weight: 500;
+            word-break: break-all;
+        }
+        
+        .info-value.monospace {
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+            flex: 1;
+            text-align: center;
+        }
+        
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-text);
+            border: 1px solid var(--error-text);
+        }
+        
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-light);
+            border: 1px solid var(--accent-primary);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .page-title h1 {
+                font-size: 2rem;
+            }
+            
+            .button-group {
+                flex-direction: column-reverse;
+            }
+        }
+    </style>
+</head>
+<body class="theme-{{ user_theme }}">
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <div class="logo">DeFi Tome</div>
+                <a href="{% url 'media_list' %}" class="back-link">← Back to Media</a>
+            </div>
+        </header>
+        
+        <div class="page-title">
+            <h1>Delete Media</h1>
+            <p>Permanently remove this file</p>
+        </div>
+        
+        <form method="post" class="delete-form">
+            {% csrf_token %}
+            
+            <div class="warning-box">
+                <div class="warning-icon">⚠️</div>
+                <h3>Warning: This action cannot be undone!</h3>
+                <p>
+                    Deleting this file will permanently remove it from your media library.
+                    {% if upload.ipfs_hash %}
+                    The file will also be unpinned from your local IPFS node.
+                    {% endif %}
+                </p>
+            </div>
+            
+            <div class="info-section">
+                <h3 style="margin-bottom: 1rem; color: var(--accent-light);">File to be Deleted</h3>
+                
+                <div class="info-item">
+                    <div class="info-label">📁 File Name</div>
+                    <div class="info-value">{{ upload.file_stored_on_ipfs.name|default:"Unnamed File" }}</div>
+                </div>
+                
+                {% if upload.ipfs_hash %}
+                <div class="info-item">
+                    <div class="info-label">🔗 IPFS Hash</div>
+                    <div class="info-value monospace">{{ upload.ipfs_hash }}</div>
+                </div>
+                {% endif %}
+                
+                <div class="info-item">
+                    <div class="info-label">📅 Upload Date</div>
+                    <div class="info-value">{{ upload.created_at|date:"F d, Y - g:i A" }}</div>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <a href="{% url 'media_list' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-danger">🗑️ Delete Permanently</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

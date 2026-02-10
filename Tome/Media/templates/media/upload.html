@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi Tome - Upload Media</title>
+    <style>
+        :root, .theme-dark, .theme- {
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: rgba(148, 163, 184, 0.2);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #60a5fa;
+            --accent-purple: #a78bfa;
+            --input-bg: rgba(15, 23, 42, 0.5);
+            --input-focus-bg: rgba(15, 23, 42, 0.7);
+        }
+        
+        .theme-light {
+            --bg-gradient-start: #f8fafc;
+            --bg-gradient-end: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --border-color: rgba(15, 23, 42, 0.2);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #2563eb;
+            --accent-purple: #9333ea;
+            --input-bg: rgba(255, 255, 255, 0.7);
+            --input-focus-bg: rgba(255, 255, 255, 0.9);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-primary);
+        }
+        
+        .page-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .page-title h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--accent-light), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .page-title p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+        
+        .messages {
+            margin-bottom: 2rem;
+        }
+        
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+        }
+        
+        .message.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: #fca5a5;
+            color: #fca5a5;
+        }
+        
+        .upload-form {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 2rem;
+        }
+        
+        label {
+            display: block;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: var(--input-bg);
+        }
+        
+        .file-upload-area:hover {
+            border-color: var(--accent-primary);
+            background: var(--input-focus-bg);
+        }
+        
+        .file-upload-area.dragover {
+            border-color: var(--accent-primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+        
+        .file-upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .file-upload-text {
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        
+        .file-upload-hint {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .selected-file {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 8px;
+            border: 1px solid var(--accent-primary);
+        }
+        
+        .selected-file-name {
+            color: var(--accent-light);
+            font-weight: 500;
+            word-break: break-all;
+        }
+        
+        .selected-file-size {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        
+        .info-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid var(--accent-primary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .info-box h4 {
+            color: var(--accent-light);
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-box ul {
+            margin-left: 1.5rem;
+            color: var(--text-muted);
+        }
+        
+        .info-box li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+            flex: 1;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-light);
+            border: 1px solid var(--accent-primary);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .page-title h1 {
+                font-size: 2rem;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body class="theme-{{ user_theme }}">
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <div class="logo">DeFi Tome</div>
+                <a href="{% url 'media_list' %}" class="back-link">← Back to Media</a>
+            </div>
+        </header>
+        
+        <div class="page-title">
+            <h1>Upload Media</h1>
+            <p>Upload files to IPFS</p>
+        </div>
+        
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message {{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="info-box">
+            <h4>📋 Upload Guidelines</h4>
+            <ul>
+                <li>Maximum file size: 10MB</li>
+                <li>Files will be uploaded to IPFS (if daemon is running)</li>
+                <li>Supported formats: Images, videos, documents, etc.</li>
+                <li>Your files are stored decentralized on IPFS</li>
+            </ul>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data" class="upload-form" id="uploadForm">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="file">Select File</label>
+                <div class="file-upload-area" id="fileUploadArea">
+                    <div class="file-upload-icon">📤</div>
+                    <div class="file-upload-text">Click to browse or drag and drop</div>
+                    <div class="file-upload-hint">Maximum file size: 10MB</div>
+                    <input type="file" name="file" id="file" required>
+                </div>
+                <div id="selectedFile" class="selected-file" style="display: none;">
+                    <div class="selected-file-name" id="fileName"></div>
+                    <div class="selected-file-size" id="fileSize"></div>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <a href="{% url 'media_list' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary" id="submitBtn" disabled>📤 Upload to IPFS</button>
+            </div>
+        </form>
+    </div>
+    
+    <script>
+        const fileInput = document.getElementById('file');
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const selectedFileDiv = document.getElementById('selectedFile');
+        const fileNameSpan = document.getElementById('fileName');
+        const fileSizeSpan = document.getElementById('fileSize');
+        const submitBtn = document.getElementById('submitBtn');
+        
+        // Click to open file dialog
+        fileUploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+        
+        // Drag and drop
+        fileUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.add('dragover');
+        });
+        
+        fileUploadArea.addEventListener('dragleave', () => {
+            fileUploadArea.classList.remove('dragover');
+        });
+        
+        fileUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            if (file) {
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                fileNameSpan.textContent = '📁 ' + file.name;
+                fileSizeSpan.textContent = 'Size: ' + sizeMB + ' MB';
+                selectedFileDiv.style.display = 'block';
+                submitBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
