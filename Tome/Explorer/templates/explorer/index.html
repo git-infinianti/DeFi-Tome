@@ -52,7 +52,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
         }
@@ -61,7 +61,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 3rem;
+            margin-bottom: 2rem;
             padding-bottom: 2rem;
             border-bottom: 1px solid var(--border-color);
         }
@@ -87,7 +87,7 @@
         
         .page-header {
             text-align: center;
-            margin-bottom: 3rem;
+            margin-bottom: 2rem;
         }
         
         .page-header h1 {
@@ -103,6 +103,100 @@
             color: var(--text-muted);
         }
         
+        /* Search Bar */
+        .search-container {
+            max-width: 800px;
+            margin: 0 auto 2rem;
+        }
+        
+        .search-form {
+            position: relative;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 1rem 3.5rem 1rem 1.5rem;
+            font-size: 1rem;
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            transition: all 0.3s;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+        
+        .search-button {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 0.6rem 1.5rem;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .search-button:hover {
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* Network Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-light);
+        }
+        
+        .stat-value.large {
+            font-size: 1.25rem;
+            word-break: break-all;
+            font-family: monospace;
+        }
+        
+        /* Error Message */
         .error-message {
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid var(--error-color);
@@ -112,79 +206,105 @@
             color: var(--error-color);
         }
         
-        .blocks-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        
-        .block-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
-            transition: all 0.3s;
-        }
-        
-        .block-card:hover {
-            border-color: var(--accent-primary);
-            background: var(--card-bg-hover);
-            transform: translateY(-2px);
-        }
-        
-        .block-header {
+        /* Blocks Section */
+        .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+        
+        .blocks-table {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        
+        .blocks-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .blocks-table th {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 1rem;
+            text-align: left;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             border-bottom: 1px solid var(--border-color);
         }
         
-        .block-height {
-            font-size: 1.3rem;
-            font-weight: bold;
+        .blocks-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        
+        .blocks-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .blocks-table tr:hover {
+            background: var(--card-bg-hover);
+        }
+        
+        .block-link {
             color: var(--accent-light);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
         }
         
-        .block-time {
-            font-size: 0.9rem;
-            color: var(--text-muted);
+        .block-link:hover {
+            color: var(--accent-primary);
+            text-decoration: underline;
         }
         
-        .block-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-        
-        .block-detail {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .block-detail-label {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: 0.25rem;
-        }
-        
-        .block-detail-value {
-            font-size: 1rem;
-            color: var(--text-primary);
-            word-break: break-all;
+        .hash-value {
             font-family: monospace;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success-color);
+        }
+        
+        .badge-primary {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--accent-light);
         }
         
         .no-blocks {
             text-align: center;
             padding: 3rem;
             color: var(--text-muted);
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
         }
         
+        /* Pagination */
         .pagination-controls {
             display: flex;
             justify-content: center;
@@ -229,18 +349,20 @@
         }
         
         @media (max-width: 768px) {
-            .block-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 0.5rem;
+            .stats-grid {
+                grid-template-columns: 1fr;
             }
             
-            .block-details {
-                grid-template-columns: 1fr;
+            .blocks-table {
+                overflow-x: auto;
             }
             
             .page-header h1 {
                 font-size: 2rem;
+            }
+            
+            .hash-value {
+                max-width: 100px;
             }
         }
     </style>
@@ -261,7 +383,21 @@
         
         <div class="page-header">
             <h1>Blockchain Explorer</h1>
-            <p>View recent blocks on the blockchain (Page {{ page }})</p>
+            <p>Explore blocks, transactions, and network statistics</p>
+        </div>
+        
+        <!-- Search Bar -->
+        <div class="search-container">
+            <form class="search-form" method="get" action="{% url 'explorer' %}">
+                <input 
+                    type="text" 
+                    name="search" 
+                    class="search-input" 
+                    placeholder="Search by block height, block hash, or transaction ID..."
+                    autocomplete="off"
+                />
+                <button type="submit" class="search-button">Search</button>
+            </form>
         </div>
         
         {% if error_message %}
@@ -270,46 +406,86 @@
         </div>
         {% endif %}
         
-        {% if blocks %}
-        <div class="blocks-container">
-            {% for block in blocks %}
-            <div class="block-card">
-                <div class="block-header">
-                    <div class="block-height">Block #{{ block.height }}</div>
-                    <div class="block-time">{{ block.time|date:"M d, Y H:i:s" }}</div>
-                </div>
-                <div class="block-details">
-                    <div class="block-detail">
-                        <div class="block-detail-label">Hash</div>
-                        <div class="block-detail-value">{{ block.hash }}</div>
-                    </div>
-                    <div class="block-detail">
-                        <div class="block-detail-label">Transactions</div>
-                        <div class="block-detail-value">{{ block.tx_count }}</div>
-                    </div>
-                    <div class="block-detail">
-                        <div class="block-detail-label">Size</div>
-                        <div class="block-detail-value">{{ block.size }} bytes</div>
-                    </div>
-                </div>
+        {% if network_stats %}
+        <!-- Network Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Block Height</div>
+                <div class="stat-value">{{ network_stats.block_height|default:"N/A" }}</div>
             </div>
-            {% endfor %}
+            <div class="stat-card">
+                <div class="stat-label">Network Hashrate</div>
+                <div class="stat-value">{{ network_stats.hashrate|floatformat:2|default:"N/A" }} H/s</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Difficulty</div>
+                <div class="stat-value">{{ network_stats.difficulty|floatformat:2|default:"N/A" }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Chain</div>
+                <div class="stat-value">{{ network_stats.chain|upper|default:"N/A" }}</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Recent Blocks -->
+        {% if blocks %}
+        <div class="section-header">
+            <h2 class="section-title">Recent Blocks</h2>
+            <span class="badge badge-primary">Page {{ page }}</span>
+        </div>
+        
+        <div class="blocks-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Height</th>
+                        <th>Hash</th>
+                        <th>Age</th>
+                        <th>Transactions</th>
+                        <th>Size</th>
+                        <th>Confirmations</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for block in blocks %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'block_detail' block.height %}" class="block-link">
+                                #{{ block.height }}
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{% url 'block_detail' block.height %}" class="hash-value" title="{{ block.hash }}">
+                                {{ block.hash }}
+                            </a>
+                        </td>
+                        <td>{{ block.time|date:"M d, Y H:i:s" }}</td>
+                        <td>
+                            <span class="badge badge-success">{{ block.tx_count }}</span>
+                        </td>
+                        <td>{{ block.size|filesizeformat }}</td>
+                        <td>{{ block.confirmations|default:"0" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
         
         <!-- Pagination Controls -->
         <div class="pagination-controls">
             {% if has_prev %}
-                <a href="?page={{ page|add:'-1' }}" class="pagination-arrow" title="Previous Page (Newer Blocks)" aria-label="Go to previous page with newer blocks">↑</a>
+                <a href="?page={{ page|add:'-1' }}" class="pagination-arrow" title="Previous Page (Newer Blocks)">↑</a>
             {% else %}
-                <span class="pagination-arrow disabled" role="button" aria-disabled="true" aria-label="No previous page available">↑</span>
+                <span class="pagination-arrow disabled">↑</span>
             {% endif %}
             
             <span class="pagination-info">Page {{ page }}</span>
             
             {% if has_next %}
-                <a href="?page={{ page|add:'1' }}" class="pagination-arrow" title="Next Page (Older Blocks)" aria-label="Go to next page with older blocks">↓</a>
+                <a href="?page={{ page|add:'1' }}" class="pagination-arrow" title="Next Page (Older Blocks)">↓</a>
             {% else %}
-                <span class="pagination-arrow disabled" role="button" aria-disabled="true" aria-label="No more blocks available">↓</span>
+                <span class="pagination-arrow disabled">↓</span>
             {% endif %}
         </div>
         {% else %}
