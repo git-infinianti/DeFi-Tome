@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'DeFi',
     'Explorer',
     'Listings',
+    'Media',
     'Settings',
     'User',
     'Wallet',
