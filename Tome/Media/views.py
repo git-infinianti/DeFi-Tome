@@ -5,6 +5,28 @@ from django.views.decorators.http import require_http_methods
 from .models import IPFSUpload
 
 
+def _unpin_from_ipfs(ipfs_hash):
+    """
+    Unpin content from local IPFS node.
+    
+    Args:
+        ipfs_hash: The IPFS hash to unpin
+        
+    Returns:
+        tuple: (success: bool, error_message: str or None)
+    """
+    if not ipfs_hash:
+        return True, None
+    
+    try:
+        import ipfshttpclient
+        client = ipfshttpclient.connect()
+        client.pin.rm(ipfs_hash)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
 @login_required
 def media_list(request):
     """Display all media uploaded by the user"""
@@ -86,26 +108,22 @@ def media_delete(request, pk):
     upload = get_object_or_404(IPFSUpload, pk=pk, user=request.user)
     
     if request.method == 'POST':
-        # Get IPFS hash before deletion
+        # Get details before deletion
         ipfs_hash = upload.ipfs_hash
-        file_name = getattr(upload.file_stored_on_ipfs, 'name', 'Unknown')
+        file_name = upload.file_stored_on_ipfs.name if upload.file_stored_on_ipfs else 'Unknown'
         
         try:
             # Try to unpin from IPFS if hash exists
-            if ipfs_hash:
-                try:
-                    import ipfshttpclient
-                    client = ipfshttpclient.connect()
-                    client.pin.rm(ipfs_hash)
-                    messages.success(request, f'File "{file_name}" deleted and unpinned from IPFS.')
-                except Exception as unpin_error:
-                    # File still gets deleted even if unpin fails
-                    messages.warning(request, f'File "{file_name}" deleted but unpin failed: {str(unpin_error)}')
-            else:
-                messages.success(request, f'File "{file_name}" deleted successfully.')
+            success, error = _unpin_from_ipfs(ipfs_hash)
             
             # Delete the record
             upload.delete()
+            
+            # Show appropriate message
+            if ipfs_hash and not success:
+                messages.warning(request, f'File "{file_name}" deleted but unpin failed: {error}')
+            else:
+                messages.success(request, f'File "{file_name}" deleted successfully.')
             
         except Exception as e:
             messages.error(request, f'Error deleting file: {str(e)}')
