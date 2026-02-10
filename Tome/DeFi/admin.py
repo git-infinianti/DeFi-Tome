@@ -4,7 +4,8 @@ from .models import (
     SwapOffer, SwapEscrow, P2PSwapTransaction, PriceFeedSource, 
     PriceFeedData, PriceFeedAggregation, CollateralAsset, InterestRateConfig,
     LendingPool, Deposit, Loan, LoanRepayment, Liquidation,
-    FixedRateBond, VariableRateSavings, InterestRateSnapshot
+    FixedRateBond, VariableRateSavings, InterestRateSnapshot,
+    VaultAsset, VaultCollateral, VaultEscrow
 )
 
 # Register your models here.
@@ -28,3 +29,6 @@ admin.site.register(Liquidation)
 admin.site.register(FixedRateBond)
 admin.site.register(VariableRateSavings)
 admin.site.register(InterestRateSnapshot)
+admin.site.register(VaultAsset)
+admin.site.register(VaultCollateral)
+admin.site.register(VaultEscrow)
