@@ -82,8 +82,8 @@ def sync_tracked_assets(user, asset_balances: dict, fetch_metadata: bool = False
             # Optionally fetch asset metadata from RPC for better classification
             if fetch_metadata:
                 try:
-                    from Tome.API.rpc import evrmore_rpc
-                    asset_data = evrmore_rpc.get_asset_data(symbol)
+                    from Tome.API.rpc import evrmore_rpc as rpc_client
+                    asset_data = rpc_client.get_asset_data(symbol)
                 except Exception:
                     # If RPC fails, proceed without metadata
                     pass

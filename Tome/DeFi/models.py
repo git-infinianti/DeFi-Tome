@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth.models import User
 from decimal import Decimal
 
+# Constants for collateral calculations
+MAX_COLLATERAL_RATIO = Decimal('999')  # Maximum healthy collateral ratio
+
 # Create your models here.
 
 class VaultAsset(models.Model):
@@ -70,7 +73,7 @@ class VaultCollateral(models.Model):
     def current_ratio(self):
         """Calculate current collateral ratio"""
         if self.borrowed_amount == 0:
-            return Decimal('999')  # Very high ratio if no borrowed amount
+            return MAX_COLLATERAL_RATIO  # Very high ratio if no borrowed amount
         return (self.collateral_amount / self.borrowed_amount) * Decimal('100')
     
     @property

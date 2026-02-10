@@ -155,24 +155,18 @@ class EvrmoreRPC:
         
         Returns:
             Transaction hash
+            
+        Note:
+            Toll parameters are prepared for Evrmore Core V2 release.
+            Current implementation uses standard asset issuance.
+            
+            TODO: When Evrmore Core V2 is released with toll support, update to:
+            - Add toll_percentage to RPC parameters
+            - Add toll_address to RPC parameters
+            - Enable NFT royalty features
         """
-        # Build the issue command with toll parameters
-        # Note: Actual RPC command may vary based on Evrmore implementation
-        # This is a placeholder for when toll feature is available
-        params = {
-            'asset_name': asset_name,
-            'qty': qty,
-            'to_address': to_address,
-            'change_address': change_address,
-            'units': units,
-            'reissuable': reissuable,
-            'has_ipfs': has_ipfs,
-            'ipfs_hash': ipfs_hash
-        }
-        
-        # When Evrmore Core V2 adds toll support, include toll params:
-        # params['toll_percentage'] = toll_percentage
-        # params['toll_address'] = toll_address
+        # Build the issue command with basic parameters
+        # Toll support will be added in future Evrmore Core V2 release
         
         return self.issue_asset(asset_name, qty, to_address, change_address, 
                                units, reissuable, has_ipfs, ipfs_hash)
