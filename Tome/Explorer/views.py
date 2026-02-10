@@ -144,14 +144,16 @@ def handle_search(request, query):
             try:
                 block = RPC.execute_command_sync('getblock', query)
                 return redirect('block_detail', height=block.get('height'))
-            except:
+            except Exception:
+                # Not a valid block hash, try transaction
                 pass
             
             # Try transaction hash
             try:
                 tx = RPC.execute_command_sync('getrawtransaction', query, True)
                 return redirect('transaction_detail', txid=query)
-            except:
+            except Exception:
+                # Not a valid transaction hash
                 pass
         
         # If nothing found, return to explorer with error
@@ -210,7 +212,6 @@ def block_detail(request, height):
         demo_mode = request.GET.get('demo', 'true') == 'true'
         
         if demo_mode and not error_message:
-            import time
             block_data = {
                 'height': int(height),
                 'hash': 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2',
@@ -283,7 +284,6 @@ def transaction_detail(request, txid):
         demo_mode = request.GET.get('demo', 'true') == 'true'
         
         if demo_mode and not error_message:
-            import time
             tx_data = {
                 'txid': txid,
                 'hash': txid,
