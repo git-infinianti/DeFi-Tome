@@ -304,7 +304,6 @@
                 <a href="{% url 'listings' %}">Listings</a>
                 <a href="{% url 'portfolio' %}">Portfolio</a>
                 <a href="{% url 'api_docs' %}">Docs</a>
-                <a href="{% url 'settings' %}">Settings</a>
                 <form method="post" action="{% url 'logout' %}" class="logout-form">
                     {% csrf_token %}
                     <button type="submit">Logout</button>
@@ -377,13 +376,6 @@
                                    onchange="this.form.submit()">
                             <span class="theme-preview light"></span>
                             <label for="theme-light">Light</label>
-                        </div>
-                        <div class="theme-option">
-                            <input type="radio" id="theme-dark" name="theme" value="dark" 
-                                   {% if user_profile.theme == 'dark' %}checked{% endif %}
-                                   onchange="this.form.submit()">
-                            <span class="theme-preview dark"></span>
-                            <label for="theme-dark">Dark</label>
                         </div>
                     </form>
                 </div>
