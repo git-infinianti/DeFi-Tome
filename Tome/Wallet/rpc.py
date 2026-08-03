@@ -1,12 +1,14 @@
 from decouple import config
 from evrmore_rpc import EvrmoreClient
 from collections import OrderedDict
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, ROUND_UP
 
 RPC = EvrmoreClient(datadir=config('RPC_DATADIR', default='/tmp/evrmore'))
 
 SATOSHIS_PER_EVR = Decimal('100000000')
 DEFAULT_FEE_EVR = Decimal('0.0001')
+DEFAULT_FEE_CONF_TARGET = 6
+DEFAULT_FEE_ESTIMATE_MODE = 'CONSERVATIVE'
 DUST_THRESHOLD_SATS = 546
 MAX_SEQUENCE = 0xFFFFFFFF
 RBF_SEQUENCE = 0xFFFFFFFD
@@ -43,6 +45,74 @@ def _satoshis_to_evr(satoshis):
 
 def _evr_output_value(amount):
     return format(_to_decimal_evr(amount), 'f')
+
+
+def _estimate_tx_size_bytes(input_count, output_count):
+    # Approximation for non-segwit style transaction weight in bytes.
+    return 10 + (int(input_count) * 148) + (int(output_count) * 34)
+
+
+def _get_estimated_feerate_evr_per_kb(conf_target=DEFAULT_FEE_CONF_TARGET,
+                                      estimate_mode=DEFAULT_FEE_ESTIMATE_MODE):
+    target = max(1, min(1008, int(conf_target or DEFAULT_FEE_CONF_TARGET)))
+    mode = str(estimate_mode or DEFAULT_FEE_ESTIMATE_MODE).upper()
+
+    call_errors = []
+    result = None
+
+    for call in (
+        lambda: RPC.estimatesmartfee(target, mode),
+        lambda: RPC.estimatesmartfee(target),
+    ):
+        try:
+            result = call()
+            break
+        except Exception as exc:
+            call_errors.append(str(exc))
+
+    if result is None:
+        return None, {'errors': call_errors}
+
+    if not isinstance(result, dict):
+        return None, {'errors': [f'Unexpected estimatesmartfee response: {result}']}
+
+    feerate = result.get('feerate')
+    if feerate is None:
+        return None, {'errors': result.get('errors') or ['Fee estimate missing feerate.'], 'blocks': result.get('blocks')}
+
+    try:
+        feerate_decimal = Decimal(str(feerate))
+    except Exception:
+        return None, {'errors': [f'Invalid feerate returned: {feerate}'], 'blocks': result.get('blocks')}
+
+    if feerate_decimal <= 0:
+        return None, {'errors': [f'Non-positive feerate returned: {feerate_decimal}'], 'blocks': result.get('blocks')}
+
+    return feerate_decimal, {'blocks': result.get('blocks')}
+
+
+def _resolve_fee_satoshis(explicit_fee_evr, input_count, output_count,
+                          conf_target=DEFAULT_FEE_CONF_TARGET,
+                          estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
+                          fallback_fee_evr=DEFAULT_FEE_EVR):
+    if explicit_fee_evr is not None:
+        return _to_satoshis(explicit_fee_evr)
+
+    feerate, _meta = _get_estimated_feerate_evr_per_kb(
+        conf_target=conf_target,
+        estimate_mode=estimate_mode,
+    )
+    if feerate is None:
+        return _to_satoshis(fallback_fee_evr)
+
+    tx_size_kb = Decimal(_estimate_tx_size_bytes(input_count, output_count)) / Decimal('1000')
+    estimated_fee_evr = (feerate * tx_size_kb).quantize(Decimal('0.00000001'), rounding=ROUND_UP)
+    estimated_fee_satoshis = _to_satoshis(estimated_fee_evr)
+
+    if estimated_fee_satoshis <= 0:
+        return _to_satoshis(fallback_fee_evr)
+
+    return estimated_fee_satoshis
 
 
 def _sequence_for_input(locktime=0, replaceable=False):
@@ -306,7 +376,9 @@ def create_and_send_asset_operation_transaction(
     authorization_asset_name=None,
     owner_token_change_output=None,
     extra_coin_outputs=None,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -321,48 +393,72 @@ def create_and_send_asset_operation_transaction(
     if not operation_address:
         raise Exception('operation_address is required.')
 
-    fee_satoshis = _to_satoshis(fee_evr)
     burn_satoshis = _to_satoshis(burn_amount_evr)
-    if fee_satoshis <= 0:
-        raise Exception('Fee must be greater than zero.')
+    if burn_satoshis > 0 and not burn_address:
+        raise Exception('burn_address is required when burn_amount_evr is greater than zero.')
 
-    required_satoshis = fee_satoshis + burn_satoshis
-    selected_inputs, selected_total = _select_inputs_for_operation(
-        from_address=from_address,
-        required_evr_satoshis=required_satoshis,
-        authorization_asset_name=authorization_asset_name,
-        locktime=locktime,
-        replaceable=replaceable,
+    extra_outputs_count = len(extra_coin_outputs or {})
+    owner_change_count = 1 if owner_token_change_output else 0
+    asset_output_count = 1
+    provisional_fee_sats = _resolve_fee_satoshis(
+        explicit_fee_evr=fee_evr,
+        input_count=1,
+        output_count=1 + extra_outputs_count + owner_change_count + asset_output_count,
+        conf_target=fee_conf_target,
+        estimate_mode=fee_estimate_mode,
     )
 
-    coin_outputs = OrderedDict()
+    selected_inputs = []
+    selected_total = 0
+    final_fee_satoshis = provisional_fee_sats
+    outputs = OrderedDict()
 
-    if burn_satoshis > 0:
-        if not burn_address:
-            raise Exception('burn_address is required when burn_amount_evr is greater than zero.')
-        coin_outputs[burn_address] = _satoshis_to_evr(burn_satoshis)
+    for _ in range(4):
+        required_satoshis = burn_satoshis + final_fee_satoshis
+        selected_inputs, selected_total = _select_inputs_for_operation(
+            from_address=from_address,
+            required_evr_satoshis=required_satoshis,
+            authorization_asset_name=authorization_asset_name,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
 
-    if extra_coin_outputs:
-        for address, amount in extra_coin_outputs.items():
-            coin_outputs[address] = _to_decimal_evr(amount)
+        coin_outputs = OrderedDict()
+        if burn_satoshis > 0:
+            coin_outputs[burn_address] = _satoshis_to_evr(burn_satoshis)
 
-    extra_coin_satoshis = sum(_to_satoshis(amount) for amount in coin_outputs.values())
-    change_satoshis = selected_total - fee_satoshis - extra_coin_satoshis
+        if extra_coin_outputs:
+            for address, amount in extra_coin_outputs.items():
+                coin_outputs[address] = _to_decimal_evr(amount)
 
-    if change_satoshis < 0:
-        needed = _satoshis_to_evr(fee_satoshis + extra_coin_satoshis)
-        available = _satoshis_to_evr(selected_total)
-        raise Exception(f'Insufficient EVR after output assembly. Needed: {needed}, available: {available}.')
+        extra_coin_satoshis = sum(_to_satoshis(amount) for amount in coin_outputs.values())
+        change_satoshis = selected_total - final_fee_satoshis - extra_coin_satoshis
 
-    if change_satoshis >= DUST_THRESHOLD_SATS:
-        coin_outputs[from_address] = _satoshis_to_evr(change_satoshis)
+        if change_satoshis < 0:
+            needed = _satoshis_to_evr(final_fee_satoshis + extra_coin_satoshis)
+            available = _satoshis_to_evr(selected_total)
+            raise Exception(f'Insufficient EVR after output assembly. Needed: {needed}, available: {available}.')
 
-    outputs = compose_asset_operation_outputs(
-        coin_outputs=coin_outputs,
-        operation_address=operation_address,
-        operation_payload=operation_payload,
-        owner_token_change_output=owner_token_change_output,
-    )
+        if change_satoshis >= DUST_THRESHOLD_SATS:
+            coin_outputs[from_address] = _satoshis_to_evr(change_satoshis)
+
+        outputs = compose_asset_operation_outputs(
+            coin_outputs=coin_outputs,
+            operation_address=operation_address,
+            operation_payload=operation_payload,
+            owner_token_change_output=owner_token_change_output,
+        )
+
+        next_fee_satoshis = _resolve_fee_satoshis(
+            explicit_fee_evr=fee_evr,
+            input_count=len(selected_inputs),
+            output_count=len(outputs),
+            conf_target=fee_conf_target,
+            estimate_mode=fee_estimate_mode,
+        )
+        if next_fee_satoshis == final_fee_satoshis:
+            break
+        final_fee_satoshis = next_fee_satoshis
 
     raw_tx = create_raw_transaction(
         inputs=selected_inputs,
@@ -381,38 +477,60 @@ def create_and_send_asset_operation_transaction(
 
 
 def create_and_send_evr_transaction(from_address, to_address, amount_evr, change_address=None,
-                                    fee_evr=DEFAULT_FEE_EVR, locktime=0, replaceable=False,
+                                    fee_evr=None, fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+                                    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE, locktime=0, replaceable=False,
                                     extra_coin_outputs=None):
     """
     Create, sign, and broadcast an EVR payment transaction using createrawtransaction.
     """
     amount_satoshis = _to_satoshis(amount_evr)
-    fee_satoshis = _to_satoshis(fee_evr)
-
     if amount_satoshis <= 0:
         raise Exception('Amount must be greater than zero.')
-    if fee_satoshis <= 0:
-        raise Exception('Fee must be greater than zero.')
 
-    required_satoshis = amount_satoshis + fee_satoshis
-    selected_inputs, selected_total = _select_evr_inputs(
-        address=from_address,
-        required_satoshis=required_satoshis,
-        locktime=locktime,
-        replaceable=replaceable,
+    extra_outputs_count = len(extra_coin_outputs or {})
+    provisional_fee_sats = _resolve_fee_satoshis(
+        explicit_fee_evr=fee_evr,
+        input_count=1,
+        output_count=1 + extra_outputs_count + 1,
+        conf_target=fee_conf_target,
+        estimate_mode=fee_estimate_mode,
     )
 
+    selected_inputs = []
+    selected_total = 0
     outputs = OrderedDict()
+    final_fee_satoshis = provisional_fee_sats
 
-    if extra_coin_outputs:
-        for address, amount in extra_coin_outputs.items():
-            outputs[address] = _evr_output_value(amount)
+    for _ in range(4):
+        required_satoshis = amount_satoshis + final_fee_satoshis
+        selected_inputs, selected_total = _select_evr_inputs(
+            address=from_address,
+            required_satoshis=required_satoshis,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
 
-    outputs[to_address] = _evr_output_value(amount_evr)
+        outputs = OrderedDict()
+        if extra_coin_outputs:
+            for address, amount in extra_coin_outputs.items():
+                outputs[address] = _evr_output_value(amount)
 
-    change_satoshis = selected_total - required_satoshis
-    if change_satoshis >= DUST_THRESHOLD_SATS:
-        outputs[change_address or from_address] = _evr_output_value(_satoshis_to_evr(change_satoshis))
+        outputs[to_address] = _evr_output_value(amount_evr)
+
+        change_satoshis = selected_total - required_satoshis
+        if change_satoshis >= DUST_THRESHOLD_SATS:
+            outputs[change_address or from_address] = _evr_output_value(_satoshis_to_evr(change_satoshis))
+
+        next_fee_satoshis = _resolve_fee_satoshis(
+            explicit_fee_evr=fee_evr,
+            input_count=len(selected_inputs),
+            output_count=len(outputs),
+            conf_target=fee_conf_target,
+            estimate_mode=fee_estimate_mode,
+        )
+        if next_fee_satoshis == final_fee_satoshis:
+            break
+        final_fee_satoshis = next_fee_satoshis
 
     raw_tx = create_raw_transaction(
         inputs=selected_inputs,
@@ -431,17 +549,15 @@ def create_and_send_evr_transaction(from_address, to_address, amount_evr, change
 
 
 def create_and_send_asset_transfer_transaction(from_address, to_address, asset_name, asset_quantity,
-                                               change_address=None, fee_evr=DEFAULT_FEE_EVR,
+                                               change_address=None, fee_evr=None,
+                                               fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+                                               fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
                                                locktime=0, replaceable=False):
     """
     Build a transfer output via createrawtransaction and broadcast it.
 
     Output ordering: coin outputs first (EVR change), transfer output last.
     """
-    fee_satoshis = _to_satoshis(fee_evr)
-    if fee_satoshis <= 0:
-        raise Exception('Fee must be greater than zero.')
-
     utxos = _get_address_utxos(from_address)
     sequence = _sequence_for_input(locktime=locktime, replaceable=replaceable)
     include_sequence = sequence != MAX_SEQUENCE
@@ -457,21 +573,43 @@ def create_and_send_asset_transfer_transaction(from_address, to_address, asset_n
 
     if not inputs:
         raise Exception(f'No spendable UTXOs found for address {from_address}.')
-    if total_satoshis < fee_satoshis:
-        needed = _satoshis_to_evr(fee_satoshis)
-        available = _satoshis_to_evr(total_satoshis)
-        raise Exception(f'Insufficient EVR for fees. Needed: {needed}, available: {available}.')
-
     outputs = OrderedDict()
-    change_satoshis = total_satoshis - fee_satoshis
-    if change_satoshis >= DUST_THRESHOLD_SATS:
-        outputs[change_address or from_address] = _evr_output_value(_satoshis_to_evr(change_satoshis))
 
-    outputs[to_address] = {
-        'transfer': {
-            asset_name: float(Decimal(str(asset_quantity))),
+    fee_satoshis = _resolve_fee_satoshis(
+        explicit_fee_evr=fee_evr,
+        input_count=len(inputs),
+        output_count=2,
+        conf_target=fee_conf_target,
+        estimate_mode=fee_estimate_mode,
+    )
+
+    for _ in range(3):
+        if total_satoshis < fee_satoshis:
+            needed = _satoshis_to_evr(fee_satoshis)
+            available = _satoshis_to_evr(total_satoshis)
+            raise Exception(f'Insufficient EVR for fees. Needed: {needed}, available: {available}.')
+
+        outputs = OrderedDict()
+        change_satoshis = total_satoshis - fee_satoshis
+        if change_satoshis >= DUST_THRESHOLD_SATS:
+            outputs[change_address or from_address] = _evr_output_value(_satoshis_to_evr(change_satoshis))
+
+        outputs[to_address] = {
+            'transfer': {
+                asset_name: float(Decimal(str(asset_quantity))),
+            }
         }
-    }
+
+        next_fee_sats = _resolve_fee_satoshis(
+            explicit_fee_evr=fee_evr,
+            input_count=len(inputs),
+            output_count=len(outputs),
+            conf_target=fee_conf_target,
+            estimate_mode=fee_estimate_mode,
+        )
+        if next_fee_sats == fee_satoshis:
+            break
+        fee_satoshis = next_fee_sats
 
     raw_tx = create_raw_transaction(
         inputs=inputs,
@@ -496,7 +634,9 @@ def create_and_send_transfer_with_message_transaction(
     asset_quantity,
     message,
     expire_time,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -513,6 +653,8 @@ def create_and_send_transfer_with_message_transaction(
         operation_address=to_address,
         operation_payload=operation_payload,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -527,7 +669,9 @@ def create_and_send_issue_asset_transaction(
     reissuable,
     has_ipfs,
     ipfs_hash='',
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -554,6 +698,8 @@ def create_and_send_issue_asset_transaction(
         burn_amount_evr=burn_amount,
         burn_address=burn_address,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -568,7 +714,9 @@ def create_and_send_issue_unique_transaction(
     owner_change_address=None,
     owner_change_quantity=1,
     burn_per_tag_evr=Decimal('5'),
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -606,6 +754,8 @@ def create_and_send_issue_unique_transaction(
         authorization_asset_name=_owner_token_name(root_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -620,7 +770,9 @@ def create_and_send_reissue_asset_transaction(
     ipfs_hash='',
     owner_change_address=None,
     owner_change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -656,6 +808,8 @@ def create_and_send_reissue_asset_transaction(
         authorization_asset_name=_owner_token_name(asset_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -673,7 +827,9 @@ def create_and_send_issue_restricted_transaction(
     ipfs_hash='',
     owner_change_address=None,
     owner_change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -712,6 +868,8 @@ def create_and_send_issue_restricted_transaction(
         authorization_asset_name=_owner_token_name(asset_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -727,7 +885,9 @@ def create_and_send_reissue_restricted_transaction(
     ipfs_hash='',
     owner_change_address=None,
     owner_change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -765,6 +925,8 @@ def create_and_send_reissue_restricted_transaction(
         authorization_asset_name=_owner_token_name(asset_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -779,7 +941,9 @@ def create_and_send_issue_qualifier_transaction(
     ipfs_hash='',
     root_change_address=None,
     change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -822,6 +986,8 @@ def create_and_send_issue_qualifier_transaction(
         authorization_asset_name=auth_asset,
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -833,7 +999,9 @@ def create_and_send_tag_addresses_transaction(
     qualifier,
     addresses,
     change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -867,6 +1035,8 @@ def create_and_send_tag_addresses_transaction(
         authorization_asset_name=str(qualifier),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -878,7 +1048,9 @@ def create_and_send_untag_addresses_transaction(
     qualifier,
     addresses,
     change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -912,6 +1084,8 @@ def create_and_send_untag_addresses_transaction(
         authorization_asset_name=str(qualifier),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -923,7 +1097,9 @@ def create_and_send_freeze_addresses_transaction(
     asset_name,
     addresses,
     owner_change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -950,6 +1126,8 @@ def create_and_send_freeze_addresses_transaction(
         authorization_asset_name=_owner_token_name(asset_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -961,7 +1139,9 @@ def create_and_send_unfreeze_addresses_transaction(
     asset_name,
     addresses,
     owner_change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -988,6 +1168,8 @@ def create_and_send_unfreeze_addresses_transaction(
         authorization_asset_name=_owner_token_name(asset_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -998,7 +1180,9 @@ def create_and_send_freeze_asset_transaction(
     owner_change_address,
     asset_name,
     owner_change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -1024,6 +1208,8 @@ def create_and_send_freeze_asset_transaction(
         authorization_asset_name=_owner_token_name(asset_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
@@ -1034,7 +1220,9 @@ def create_and_send_unfreeze_asset_transaction(
     owner_change_address,
     asset_name,
     owner_change_quantity=1,
-    fee_evr=DEFAULT_FEE_EVR,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
 ):
@@ -1060,6 +1248,8 @@ def create_and_send_unfreeze_asset_transaction(
         authorization_asset_name=_owner_token_name(asset_name),
         owner_token_change_output=owner_change_output,
         fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
     )
