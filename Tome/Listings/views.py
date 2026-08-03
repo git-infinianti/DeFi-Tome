@@ -14,6 +14,7 @@ from Explorer.rpc import RPC
 from Wallet.models import WalletAddress
 from Wallet.wallet import Wallet
 from Wallet.asset_tracking import sync_tracked_assets
+from Wallet.rpc import create_and_send_evr_transaction
 import uuid
 
 from django.conf import settings
@@ -877,16 +878,13 @@ def place_market_order(request):
                             seller_address = _get_user_primary_address(seller)
                             
                             if buyer_address and seller_address:
-                                # RPC call: sendfromaddress(from_address, to_address, amount, "", "", false, 6)
-                                tx_hash = RPC.sendfromaddress(
-                                    buyer_address,
-                                    seller_address,
-                                    str(evr_amount),
-                                    "",
-                                    "",
-                                    False,
-                                    6
+                                tx_result = create_and_send_evr_transaction(
+                                    from_address=buyer_address,
+                                    to_address=seller_address,
+                                    amount_evr=evr_amount,
+                                    change_address=buyer_address,
                                 )
+                                tx_hash = tx_result['txid']
                                 print(f"EVR transfer: {evr_amount} from {buyer_address} to {seller_address}, tx: {tx_hash}")
                             else:
                                 print(f"Warning: Could not get addresses for EVR transfer")
@@ -1178,16 +1176,13 @@ def _match_order(order):
                         seller_address = _get_user_primary_address(seller)
                         
                         if buyer_address and seller_address:
-                            # RPC call: sendfromaddress(from_address, to_address, amount, "", "", false, 6)
-                            tx_hash = RPC.sendfromaddress(
-                                buyer_address,
-                                seller_address,
-                                str(evr_amount),
-                                "",
-                                "",
-                                False,
-                                6
+                            tx_result = create_and_send_evr_transaction(
+                                from_address=buyer_address,
+                                to_address=seller_address,
+                                amount_evr=evr_amount,
+                                change_address=buyer_address,
                             )
+                            tx_hash = tx_result['txid']
                             print(f"EVR transfer: {evr_amount} from {buyer_address} to {seller_address}, tx: {tx_hash}")
                         else:
                             print(f"Warning: Could not get addresses for EVR transfer")

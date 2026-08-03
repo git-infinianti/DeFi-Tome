@@ -12,7 +12,7 @@ import requests
 from .models import UserWallet, WalletAddress, SafeTradeCredentials
 from .wallet import Wallet
 from .asset_tracking import sync_tracked_assets
-from .rpc import RPC
+from .rpc import RPC, create_and_send_evr_transaction, create_and_send_asset_transfer_transaction
 from hdwallet.entropies import BIP39Entropy
 from hdwallet.derivations import BIP44Derivation, CHANGES
 from hdwallet import cryptocurrencies
@@ -457,13 +457,30 @@ def send_funds(request):
                 messages.error(request, 'Amount exceeds your asset balance.')
                 return redirect('send_funds')
         
-        # Get wallet instance
-        wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
-        wallet = wallet_instance.get_wallet()
-        
-        # Create and send transaction via RPC
+        from_address = _get_user_primary_address(request.user)
+        if not from_address:
+            messages.error(request, 'Unable to determine a source wallet address.')
+            return redirect('send_funds')
+
+        # Create and send transaction via createrawtransaction
         try:
-            txid = RPC.sendtoaddress(recipient_address, float(amount_decimal), wallet)
+            if currency == 'EVR':
+                tx_result = create_and_send_evr_transaction(
+                    from_address=from_address,
+                    to_address=recipient_address,
+                    amount_evr=amount_decimal,
+                    change_address=from_address,
+                )
+            else:
+                tx_result = create_and_send_asset_transfer_transaction(
+                    from_address=from_address,
+                    to_address=recipient_address,
+                    asset_name=currency,
+                    asset_quantity=amount_decimal,
+                    change_address=from_address,
+                )
+
+            txid = tx_result['txid']
             messages.success(request, f'Successfully sent {amount_decimal} to {recipient_address}. Transaction ID: {txid}')
         except Exception as e:
             messages.error(request, f'Error sending funds: {str(e)}')
