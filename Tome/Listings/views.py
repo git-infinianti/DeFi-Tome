@@ -129,6 +129,16 @@ def _get_user_primary_address(user):
         return None
 
 
+def _derive_user_wif_for_address(user, address):
+    """Derive the WIF for a user's address from stored entropy/passphrase."""
+    user_wallet = getattr(user, 'user_wallet', None)
+    if not user_wallet:
+        raise Exception('No wallet found for user.')
+
+    wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+    return wallet_instance.get_wif_for_address(address)
+
+
 def _get_user_asset_balances(user):
     """Return a dict of asset balances for the user's primary address."""
     address = _get_user_primary_address(user)
@@ -878,11 +888,13 @@ def place_market_order(request):
                             seller_address = _get_user_primary_address(seller)
                             
                             if buyer_address and seller_address:
+                                buyer_wif = _derive_user_wif_for_address(buyer, buyer_address)
                                 tx_result = create_and_send_evr_transaction(
                                     from_address=buyer_address,
                                     to_address=seller_address,
                                     amount_evr=evr_amount,
                                     change_address=buyer_address,
+                                    wif_keys=[buyer_wif],
                                 )
                                 tx_hash = tx_result['txid']
                                 print(f"EVR transfer: {evr_amount} from {buyer_address} to {seller_address}, tx: {tx_hash}")
@@ -1176,11 +1188,13 @@ def _match_order(order):
                         seller_address = _get_user_primary_address(seller)
                         
                         if buyer_address and seller_address:
+                            buyer_wif = _derive_user_wif_for_address(buyer, buyer_address)
                             tx_result = create_and_send_evr_transaction(
                                 from_address=buyer_address,
                                 to_address=seller_address,
                                 amount_evr=evr_amount,
                                 change_address=buyer_address,
+                                wif_keys=[buyer_wif],
                             )
                             tx_hash = tx_result['txid']
                             print(f"EVR transfer: {evr_amount} from {buyer_address} to {seller_address}, tx: {tx_hash}")

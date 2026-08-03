@@ -1,0 +1,36 @@
+name: Verify RPC Cheatsheet
+
+on:
+  pull_request:
+    paths:
+      - commands-cheatsheet.md
+      - scripts/verify_rpc_cheatsheet.py
+      - .github/workflows/verify-rpc-cheatsheet.yml
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Verify Commands Against Live RPC Help
+    runs-on: self-hosted
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run strict cheatsheet verification
+        env:
+          EVRMORE_CONF: ${{ vars.EVRMORE_CONF }}
+          EVRMORE_RPC_HOST: ${{ vars.EVRMORE_RPC_HOST }}
+        run: |
+          set -euo pipefail
+          CONF_PATH="${EVRMORE_CONF:-$HOME/Library/Application Support/Evrmore/evrmore.conf}"
+          RPC_HOST="${EVRMORE_RPC_HOST:-127.0.0.1}"
+          echo "Using conf: $CONF_PATH"
+          echo "Using host: $RPC_HOST"
+          python3 scripts/verify_rpc_cheatsheet.py --strict --conf "$CONF_PATH" --host "$RPC_HOST"

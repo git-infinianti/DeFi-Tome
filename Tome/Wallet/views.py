@@ -84,6 +84,19 @@ def _get_user_primary_address(user):
         return None
 
 
+def _derive_user_wif_for_address(user, address):
+    """Derive the signing WIF for an address from user entropy at runtime."""
+    user_wallet = getattr(user, 'user_wallet', None)
+    if not user_wallet:
+        raise Exception('No wallet found for user.')
+
+    wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+    try:
+        return wallet_instance.get_wif_for_address(address)
+    except ValueError as exc:
+        raise Exception(f'Unable to derive signing key for address {address}: {str(exc)}')
+
+
 def _get_user_asset_balances(user):
     """Return a dict of asset balances for the user's primary address."""
     address = _get_user_primary_address(user)
@@ -462,6 +475,12 @@ def send_funds(request):
             messages.error(request, 'Unable to determine a source wallet address.')
             return redirect('send_funds')
 
+        try:
+            sender_wif = _derive_user_wif_for_address(request.user, from_address)
+        except Exception as e:
+            messages.error(request, f'Unable to derive sender signing key: {str(e)}')
+            return redirect('send_funds')
+
         # Create and send transaction via createrawtransaction
         try:
             if currency == 'EVR':
@@ -470,6 +489,7 @@ def send_funds(request):
                     to_address=recipient_address,
                     amount_evr=amount_decimal,
                     change_address=from_address,
+                    wif_keys=[sender_wif],
                 )
             else:
                 tx_result = create_and_send_asset_transfer_transaction(
@@ -478,6 +498,7 @@ def send_funds(request):
                     asset_name=currency,
                     asset_quantity=amount_decimal,
                     change_address=from_address,
+                    wif_keys=[sender_wif],
                 )
 
             txid = tx_result['txid']

@@ -334,20 +334,48 @@ def compose_asset_operation_outputs(coin_outputs, operation_address, operation_p
     return outputs
 
 
-def sign_and_broadcast_raw_transaction(raw_tx):
+def _normalize_wifs(wif_keys):
+    if wif_keys is None:
+        return []
+    if isinstance(wif_keys, (list, tuple, set)):
+        return [str(item).strip() for item in wif_keys if str(item).strip()]
+    wif = str(wif_keys).strip()
+    return [wif] if wif else []
+
+
+def sign_raw_transaction(raw_tx, wif_keys=None):
+    normalized_wifs = _normalize_wifs(wif_keys)
     sign_errors = []
     signed = None
 
-    for method_name in ('signrawtransactionwithwallet', 'signrawtransaction'):
-        signer = getattr(RPC, method_name, None)
+    if normalized_wifs:
+        signer = getattr(RPC, 'signrawtransaction', None)
         if signer is None:
-            continue
+            sign_errors.append('signrawtransaction: RPC method unavailable.')
+        else:
+            for call in (
+                lambda: signer(raw_tx, None, normalized_wifs, 'ALL'),
+                lambda: signer(raw_tx, [], normalized_wifs, 'ALL'),
+                lambda: signer(raw_tx, None, normalized_wifs),
+                lambda: signer(raw_tx, [], normalized_wifs),
+            ):
+                try:
+                    signed = call()
+                    break
+                except Exception as exc:
+                    sign_errors.append(f'signrawtransaction(privkeys): {str(exc)}')
 
-        try:
-            signed = signer(raw_tx)
-            break
-        except Exception as exc:
-            sign_errors.append(f'{method_name}: {str(exc)}')
+    if signed is None:
+        for method_name in ('signrawtransactionwithwallet', 'signrawtransaction'):
+            signer = getattr(RPC, method_name, None)
+            if signer is None:
+                continue
+
+            try:
+                signed = signer(raw_tx)
+                break
+            except Exception as exc:
+                sign_errors.append(f'{method_name}: {str(exc)}')
 
     if signed is None:
         details = '; '.join(sign_errors) if sign_errors else 'No signing method available on RPC client.'
@@ -364,10 +392,19 @@ def sign_and_broadcast_raw_transaction(raw_tx):
     if not signed_hex:
         raise Exception('RPC did not return signed transaction hex.')
 
+    return signed_hex
+
+
+def broadcast_signed_transaction(signed_hex):
     return RPC.sendrawtransaction(signed_hex)
 
 
-def create_and_send_asset_operation_transaction(
+def sign_and_broadcast_raw_transaction(raw_tx, wif_keys=None):
+    signed_hex = sign_raw_transaction(raw_tx, wif_keys=wif_keys)
+    return broadcast_signed_transaction(signed_hex)
+
+
+def create_raw_asset_operation_transaction(
     from_address,
     operation_address,
     operation_payload,
@@ -383,12 +420,7 @@ def create_and_send_asset_operation_transaction(
     replaceable=False,
 ):
     """
-    Generic builder for Evrmore asset operations with required output ordering.
-
-    Output ordering:
-    1) Coin outputs first (burn + EVR outputs + EVR change)
-    2) Owner/root token change output next (if present)
-    3) Asset operation output last
+    Create a raw asset-operation transaction without signing or broadcasting it.
     """
     if not operation_address:
         raise Exception('operation_address is required.')
@@ -466,22 +498,62 @@ def create_and_send_asset_operation_transaction(
         locktime=locktime,
         replaceable=replaceable,
     )
-    txid = sign_and_broadcast_raw_transaction(raw_tx)
 
     return {
-        'txid': txid,
         'raw_tx': raw_tx,
         'inputs': selected_inputs,
         'outputs': dict(outputs),
     }
 
 
-def create_and_send_evr_transaction(from_address, to_address, amount_evr, change_address=None,
-                                    fee_evr=None, fee_conf_target=DEFAULT_FEE_CONF_TARGET,
-                                    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE, locktime=0, replaceable=False,
-                                    extra_coin_outputs=None):
+def create_and_send_asset_operation_transaction(
+    from_address,
+    operation_address,
+    operation_payload,
+    burn_amount_evr=Decimal('0'),
+    burn_address=None,
+    authorization_asset_name=None,
+    owner_token_change_output=None,
+    extra_coin_outputs=None,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
+    locktime=0,
+    replaceable=False,
+    wif_keys=None,
+):
     """
-    Create, sign, and broadcast an EVR payment transaction using createrawtransaction.
+    Create, sign, and broadcast an asset operation transaction.
+    """
+    tx_data = create_raw_asset_operation_transaction(
+        from_address=from_address,
+        operation_address=operation_address,
+        operation_payload=operation_payload,
+        burn_amount_evr=burn_amount_evr,
+        burn_address=burn_address,
+        authorization_asset_name=authorization_asset_name,
+        owner_token_change_output=owner_token_change_output,
+        extra_coin_outputs=extra_coin_outputs,
+        fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
+        locktime=locktime,
+        replaceable=replaceable,
+    )
+    txid = sign_and_broadcast_raw_transaction(tx_data['raw_tx'], wif_keys=wif_keys)
+
+    return {
+        'txid': txid,
+        **tx_data,
+    }
+
+
+def create_raw_evr_transaction(from_address, to_address, amount_evr, change_address=None,
+                               fee_evr=None, fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+                               fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE, locktime=0, replaceable=False,
+                               extra_coin_outputs=None):
+    """
+    Create a raw EVR payment transaction without signing or broadcasting it.
     """
     amount_satoshis = _to_satoshis(amount_evr)
     if amount_satoshis <= 0:
@@ -538,25 +610,48 @@ def create_and_send_evr_transaction(from_address, to_address, amount_evr, change
         locktime=locktime,
         replaceable=replaceable,
     )
-    txid = sign_and_broadcast_raw_transaction(raw_tx)
 
     return {
-        'txid': txid,
         'raw_tx': raw_tx,
         'inputs': selected_inputs,
         'outputs': dict(outputs),
     }
 
 
-def create_and_send_asset_transfer_transaction(from_address, to_address, asset_name, asset_quantity,
-                                               change_address=None, fee_evr=None,
-                                               fee_conf_target=DEFAULT_FEE_CONF_TARGET,
-                                               fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
-                                               locktime=0, replaceable=False):
+def create_and_send_evr_transaction(from_address, to_address, amount_evr, change_address=None,
+                                    fee_evr=None, fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+                                    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE, locktime=0, replaceable=False,
+                                    extra_coin_outputs=None, wif_keys=None):
     """
-    Build a transfer output via createrawtransaction and broadcast it.
+    Create, sign, and broadcast an EVR payment transaction.
+    """
+    tx_data = create_raw_evr_transaction(
+        from_address=from_address,
+        to_address=to_address,
+        amount_evr=amount_evr,
+        change_address=change_address,
+        fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
+        locktime=locktime,
+        replaceable=replaceable,
+        extra_coin_outputs=extra_coin_outputs,
+    )
+    txid = sign_and_broadcast_raw_transaction(tx_data['raw_tx'], wif_keys=wif_keys)
 
-    Output ordering: coin outputs first (EVR change), transfer output last.
+    return {
+        'txid': txid,
+        **tx_data,
+    }
+
+
+def create_raw_asset_transfer_transaction(from_address, to_address, asset_name, asset_quantity,
+                                          change_address=None, fee_evr=None,
+                                          fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+                                          fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
+                                          locktime=0, replaceable=False):
+    """
+    Create a raw asset transfer transaction without signing or broadcasting it.
     """
     utxos = _get_address_utxos(from_address)
     sequence = _sequence_for_input(locktime=locktime, replaceable=replaceable)
@@ -617,13 +712,39 @@ def create_and_send_asset_transfer_transaction(from_address, to_address, asset_n
         locktime=locktime,
         replaceable=replaceable,
     )
-    txid = sign_and_broadcast_raw_transaction(raw_tx)
 
     return {
-        'txid': txid,
         'raw_tx': raw_tx,
         'inputs': inputs,
         'outputs': dict(outputs),
+    }
+
+
+def create_and_send_asset_transfer_transaction(from_address, to_address, asset_name, asset_quantity,
+                                               change_address=None, fee_evr=None,
+                                               fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+                                               fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
+                                               locktime=0, replaceable=False, wif_keys=None):
+    """
+    Create, sign, and broadcast an asset transfer transaction.
+    """
+    tx_data = create_raw_asset_transfer_transaction(
+        from_address=from_address,
+        to_address=to_address,
+        asset_name=asset_name,
+        asset_quantity=asset_quantity,
+        change_address=change_address,
+        fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
+        locktime=locktime,
+        replaceable=replaceable,
+    )
+    txid = sign_and_broadcast_raw_transaction(tx_data['raw_tx'], wif_keys=wif_keys)
+
+    return {
+        'txid': txid,
+        **tx_data,
     }
 
 
