@@ -84,4 +84,17 @@ class TrackedAssetHolding(models.Model):
 
     def __str__(self):
         return f"TrackedAssetHolding(asset={self.asset.symbol}, user_id={self.user_id}, qty={self.quantity})"
+
+
+class SafeTradeCredentials(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='safe_trade_credentials')
+    api_key = models.CharField(max_length=255)
+    api_secret = models.CharField(max_length=255)
+    member_info = models.JSONField(blank=True, null=True)
+    last_synced_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"SafeTradeCredentials(user_id={self.user_id})"
     

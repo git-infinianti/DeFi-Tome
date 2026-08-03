@@ -31,3 +31,4 @@ def create_raw_transaction(inputs, outputs):
         return raw_tx
     except Exception as e:
         raise Exception(f"Failed to create raw transaction: {str(e)}")
+    

@@ -335,6 +335,40 @@
         .status-active {
             color: var(--success-text) !important;
         }
+
+        .button-row {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .member-grid {
+            display: grid;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .member-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--input-bg);
+        }
+
+        .member-key {
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .member-value {
+            text-align: right;
+            word-break: break-word;
+            max-width: 65%;
+        }
         
         @media (max-width: 768px) {
             .wallet-field {
@@ -380,6 +414,15 @@
         
         <h1 class="page-title">💼 Wallet Portfolio</h1>
         <p class="page-subtitle">Manage your DeFi wallets and assets</p>
+
+        {% if messages %}
+            {% for message in messages %}
+            <div class="alert{% if message.tags == 'error' %} alert-error{% endif %}">
+                <span class="alert-icon">{% if message.tags == 'error' %}⚠️{% else %}ℹ️{% endif %}</span>
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
         
         {% if user_wallet %}
         <div class="card">
@@ -443,16 +486,9 @@
         {% else %}
         <div class="card">
             <h2>Create Your Wallet</h2>
-            {% if messages %}
-                {% for message in messages %}
-                <div class="alert{% if message.tags == 'error' %} alert-error{% endif %}">
-                    <span class="alert-icon">{% if message.tags == 'error' %}⚠️{% else %}ℹ️{% endif %}</span>
-                    {{ message }}
-                </div>
-                {% endfor %}
-            {% endif %}
             <form method="post" action="{% url 'portfolio' %}">
                 {% csrf_token %}
+                <input type="hidden" name="action" value="create_wallet">
                 <div class="form-group">
                     <label for="wallet_name">Wallet Name *</label>
                     <input type="text" id="wallet_name" name="wallet_name" required maxlength="100" placeholder="e.g., My Main Wallet">
@@ -496,6 +532,77 @@
             </div>
         </div>
         {% endif %}
+
+        <div class="card">
+            <h2>SafeTrade Portfolio Integration</h2>
+            <div class="alert">
+                <span class="alert-icon">🔐</span>
+                Save your SafeTrade API credentials to load your SafeTrade member profile.
+            </div>
+            {% if safe_trade_server_ip %}
+            <div class="alert" style="margin-top: 1rem;">
+                <span class="alert-icon">🌐</span>
+                SafeTrade trusted IP to add: <strong>{{ safe_trade_server_ip }}</strong>
+            </div>
+            {% endif %}
+            <form method="post" action="{% url 'portfolio' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_safetrade">
+                <div class="form-group">
+                    <label for="safe_trade_api_key">SafeTrade API Key *</label>
+                    <input
+                        type="text"
+                        id="safe_trade_api_key"
+                        name="safe_trade_api_key"
+                        maxlength="255"
+                        required
+                        value="{% if safe_trade_credentials %}{{ safe_trade_credentials.api_key }}{% endif %}"
+                        placeholder="Enter your SafeTrade API key"
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="safe_trade_api_secret">SafeTrade API Secret {% if not safe_trade_credentials %}*{% endif %}</label>
+                    <input
+                        type="password"
+                        id="safe_trade_api_secret"
+                        name="safe_trade_api_secret"
+                        maxlength="255"
+                        {% if not safe_trade_credentials %}required{% endif %}
+                        placeholder="{% if safe_trade_credentials %}Leave blank to keep existing secret{% else %}Enter your SafeTrade API secret{% endif %}"
+                        autocomplete="off"
+                    >
+                    <small>{% if safe_trade_credentials %}Secret is already stored. Submit only if you want to rotate it.{% else %}Your secret is required to authenticate against SafeTrade.{% endif %}</small>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn">Save & Sync SafeTrade</button>
+                </div>
+            </form>
+
+            {% if safe_trade_credentials %}
+            <form method="post" action="{% url 'portfolio' %}" style="margin-top: 1rem;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="refresh_safetrade">
+                <button type="submit" class="btn btn-secondary">Refresh SafeTrade Info</button>
+            </form>
+            {% endif %}
+
+            {% if safe_trade_member_info %}
+            <div style="margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 0.5rem; color: var(--accent-light);">SafeTrade Member Info</h3>
+                {% if safe_trade_credentials.last_synced_at %}
+                <p class="page-subtitle" style="margin-bottom: 1rem;">Last synced: {{ safe_trade_credentials.last_synced_at|date:"F d, Y H:i:s" }}</p>
+                {% endif %}
+                <div class="member-grid">
+                    {% for key, value in safe_trade_member_info.items %}
+                    <div class="member-row">
+                        <div class="member-key">{{ key|title }}</div>
+                        <div class="member-value">{{ value }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </body>
 </html>

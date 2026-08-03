@@ -5,13 +5,20 @@ from django.contrib import messages
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from decimal import Decimal, InvalidOperation
-from .models import UserWallet, WalletAddress
+import hashlib
+import hmac
+import time
+import requests
+from .models import UserWallet, WalletAddress, SafeTradeCredentials
 from .wallet import Wallet
 from .asset_tracking import sync_tracked_assets
 from .rpc import RPC
 from hdwallet.entropies import BIP39Entropy
 from hdwallet.derivations import BIP44Derivation, CHANGES
 from hdwallet import cryptocurrencies
+
+
+SAFETRADE_BASE_URL = 'https://safe.trade/api/v2'
 
 
 def _sync_user_evr_balance(user_wallet):
@@ -114,15 +121,169 @@ def _format_asset_amount(amount):
     return amount_str or '0'
 
 
+def _fetch_safetrade_member_info(api_key, api_secret):
+    """Fetch SafeTrade member profile using signed auth headers."""
+    nonce = str(int(time.time() * 1000))
+    payload = f"{nonce}{api_key}".encode('utf-8')
+    signature = hmac.new(
+        api_secret.encode('utf-8'),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+
+    headers = {
+        'X-Auth-Apikey': api_key,
+        'X-Auth-Nonce': nonce,
+        'X-Auth-Signature': signature,
+    }
+
+    try:
+        response = requests.get(
+            f'{SAFETRADE_BASE_URL}/trade/account/members/me',
+            headers=headers,
+            timeout=12,
+        )
+    except requests.RequestException as exc:
+        return None, f'Unable to reach SafeTrade: {str(exc)}'
+
+    response_payload = None
+    if response.status_code >= 400:
+        try:
+            response_payload = response.json()
+        except ValueError:
+            response_payload = None
+
+    if response.status_code == 401:
+        if isinstance(response_payload, dict):
+            errors = response_payload.get('errors')
+            if isinstance(errors, list) and 'authz.apikey_untrusted_ip' in errors:
+                server_ip = _get_server_public_ip()
+                ip_message = f' Current server egress IP: {server_ip}.' if server_ip else ''
+                return None, (
+                    'SafeTrade rejected this request because the server IP is not trusted for your API key '
+                    '(authz.apikey_untrusted_ip). Add this server IP to your SafeTrade API key allowlist and retry.'
+                    f'{ip_message}'
+                )
+        return None, 'SafeTrade authentication failed. Please verify your API key, secret, and API key permissions.'
+
+    if response.status_code >= 400:
+        if isinstance(response_payload, dict):
+            errors = response_payload.get('errors')
+            if isinstance(errors, list) and errors:
+                error_text = ', '.join(str(error) for error in errors)
+                return None, f'SafeTrade returned HTTP {response.status_code}: {error_text}'
+        return None, f'SafeTrade returned HTTP {response.status_code}. Please try again shortly.'
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None, 'SafeTrade returned an invalid JSON response.'
+
+    member_info = payload.get('member') if isinstance(payload, dict) else None
+    if member_info is None and isinstance(payload, dict):
+        member_info = payload.get('data', payload)
+    if not isinstance(member_info, dict):
+        return None, 'SafeTrade response did not include member information.'
+
+    return member_info, None
+
+
+def _get_server_public_ip():
+    """Best-effort lookup of the server's public egress IP for SafeTrade allowlisting."""
+    endpoints = [
+        ('https://api.ipify.org?format=json', 'json'),
+        ('https://ifconfig.me/ip', 'text'),
+    ]
+
+    for url, response_type in endpoints:
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code != 200:
+                continue
+
+            if response_type == 'json':
+                payload = response.json()
+                ip_value = payload.get('ip') if isinstance(payload, dict) else None
+            else:
+                ip_value = response.text.strip()
+
+            if ip_value and isinstance(ip_value, str):
+                return ip_value
+        except (requests.RequestException, ValueError):
+            continue
+
+    return None
+
+
 # Create your views here.
 @login_required
 def portfolio(request):
     """Display user's wallet portfolio"""
     # Get the user's wallet if it exists using the OneToOne relationship
     user_wallet = getattr(request.user, 'user_wallet', None)
+    safe_trade_credentials = getattr(request.user, 'safe_trade_credentials', None)
+    safe_trade_server_ip = _get_server_public_ip()
     
     # Create wallet on form submission
     if request.method == 'POST':
+        action = request.POST.get('action', 'create_wallet')
+
+        if action == 'save_safetrade':
+            api_key = request.POST.get('safe_trade_api_key', '').strip()
+            api_secret = request.POST.get('safe_trade_api_secret', '').strip()
+
+            if not api_key:
+                messages.error(request, 'SafeTrade API key is required.')
+                return redirect('portfolio')
+
+            if not api_secret and not safe_trade_credentials:
+                messages.error(request, 'SafeTrade API secret is required for first-time setup.')
+                return redirect('portfolio')
+
+            if safe_trade_credentials:
+                safe_trade_credentials.api_key = api_key
+                if api_secret:
+                    safe_trade_credentials.api_secret = api_secret
+                safe_trade_credentials.save(update_fields=['api_key', 'api_secret', 'updated_at'])
+            else:
+                safe_trade_credentials = SafeTradeCredentials.objects.create(
+                    user=request.user,
+                    api_key=api_key,
+                    api_secret=api_secret,
+                )
+
+            member_info, error = _fetch_safetrade_member_info(
+                safe_trade_credentials.api_key,
+                safe_trade_credentials.api_secret,
+            )
+            if error:
+                messages.error(request, error)
+            else:
+                safe_trade_credentials.member_info = member_info
+                safe_trade_credentials.last_synced_at = timezone.now()
+                safe_trade_credentials.save(update_fields=['member_info', 'last_synced_at', 'updated_at'])
+                messages.success(request, 'SafeTrade credentials saved and account info synced successfully.')
+
+            return redirect('portfolio')
+
+        if action == 'refresh_safetrade':
+            if not safe_trade_credentials:
+                messages.error(request, 'Save your SafeTrade API credentials first.')
+                return redirect('portfolio')
+
+            member_info, error = _fetch_safetrade_member_info(
+                safe_trade_credentials.api_key,
+                safe_trade_credentials.api_secret,
+            )
+            if error:
+                messages.error(request, error)
+            else:
+                safe_trade_credentials.member_info = member_info
+                safe_trade_credentials.last_synced_at = timezone.now()
+                safe_trade_credentials.save(update_fields=['member_info', 'last_synced_at', 'updated_at'])
+                messages.success(request, 'SafeTrade account info refreshed successfully.')
+            return redirect('portfolio')
+
         # Create wallet if it doesn't exist
         if not user_wallet:
             # Get wallet name and passphrase from form
@@ -175,6 +336,9 @@ def portfolio(request):
     
     context = {
         'user_wallet': user_wallet,
+        'safe_trade_credentials': safe_trade_credentials,
+        'safe_trade_member_info': safe_trade_credentials.member_info if safe_trade_credentials else None,
+        'safe_trade_server_ip': safe_trade_server_ip,
     }
     return render(request, 'portfolio/wallet.html', context)
 
