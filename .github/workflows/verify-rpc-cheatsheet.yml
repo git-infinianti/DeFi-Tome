@@ -3,7 +3,7 @@ name: Verify RPC Cheatsheet
 on:
   pull_request:
     paths:
-      - commands-cheatsheet.md
+      - .github/docs/commands-cheatsheet.md
       - scripts/verify_rpc_cheatsheet.py
       - .github/workflows/verify-rpc-cheatsheet.yml
   workflow_dispatch:

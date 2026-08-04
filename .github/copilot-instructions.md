@@ -45,6 +45,11 @@ python manage.py startapp {name} # Generate new app
 
 ## Project Conventions
 
+### Documentation Placement
+- Keep only public, repository-entry documentation at the root, such as `README.md`, licensing, contribution, and security-policy files.
+- Store internal implementation summaries, feature checklists, cheatsheets, and engineering references in `.github/docs/`.
+- Before adding a non-public Markdown file at the repository root, update or consolidate the relevant document under `.github/docs/` instead.
+
 ### Model Layer (`models.py`)
 - User model in `User/models.py`: `UserWallet` with UUID primary key, entropy, passphrase, timestamps
 - Models use Django's built-in `auto_now_add` and `auto_now` for timestamps

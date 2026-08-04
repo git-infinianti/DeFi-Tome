@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Validate commands-cheatsheet.md against live Evrmore RPC help output.
+"""Validate .github/docs/commands-cheatsheet.md against live Evrmore RPC help output.
 
 Usage:
   python3 scripts/verify_rpc_cheatsheet.py
-  python3 scripts/verify_rpc_cheatsheet.py --markdown commands-cheatsheet.md
+    python3 scripts/verify_rpc_cheatsheet.py --markdown .github/docs/commands-cheatsheet.md
   python3 scripts/verify_rpc_cheatsheet.py --strict
 
 Exit codes:
@@ -26,7 +26,7 @@ from typing import Dict, List, Tuple
 
 
 DEFAULT_CONF = Path.home() / "Library/Application Support/Evrmore/evrmore.conf"
-DEFAULT_MD = Path("commands-cheatsheet.md")
+DEFAULT_MD = Path(".github/docs/commands-cheatsheet.md")
 COMMAND_LINE_PATTERN = re.compile(r'^\s*-\s+`([^`]+)`\s*$')
 
 
