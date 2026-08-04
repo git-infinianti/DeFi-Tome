@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeFi Tome - Accept Swap Offer</title>
+    <title>DeFi Tome - Review Atomic Swap</title>
     <style>
         * {
             margin: 0;
@@ -168,7 +168,7 @@
         
         <div class="confirmation-card">
             <div class="page-title">
-                <h1>Confirm Swap</h1>
+                <h1>Confirm Atomic Swap</h1>
             </div>
             
             <div class="swap-summary">
@@ -201,14 +201,14 @@
             </div>
             
             <div class="warning-box">
-                ⚠️ Please review the swap details carefully. Once accepted, the swap will be executed immediately and cannot be reversed.
+                ⚠️ Review the atomic swap details carefully. Confirmation broadcasts one on-chain transaction and cannot be reversed.
             </div>
             
             <form method="post">
                 {% csrf_token %}
                 <div class="form-actions">
                     <a href="{% url 'available_swap_offers' %}" class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Confirm & Execute Swap</button>
+                    <button type="submit" class="btn btn-primary">Confirm & Broadcast Atomic Swap</button>
                 </div>
             </form>
         </div>

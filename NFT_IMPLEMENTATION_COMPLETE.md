@@ -1,5 +1,10 @@
 # NFT Feature Implementation - Complete Checklist
 
+> **Superseded implementation note (2026-08-03):** NFTs are now Evrmore unique
+> assets named `ROOT#TAG`, minted through `issueunique` or `POST /api/v1/nfts/mint/`.
+> Atomic Swaps select that actual asset; the local checkbox and UUID details below
+> describe a retired prototype.
+
 ## ✅ Backend Implementation (Already Completed)
 
 ### Models ([Listings/models.py](Listings/models.py))

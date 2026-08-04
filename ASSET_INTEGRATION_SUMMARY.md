@@ -16,18 +16,14 @@ This PR successfully integrates all Evrmore blockchain asset types into DeFi-Tom
 - Automatic detection via "/" in symbol
 - **Status**: ✅ Fully implemented
 
-### 3. Unique Assets
-- Collectibles with unique identifiers (TOKEN#123)
-- Detected via "#" in symbol
+### 3. NFTs (Evrmore Unique Assets)
+- 1-of-1 assets with unique identifiers (`ROOT#TAG`)
+- Detected via `#` in the asset name (excluding qualifier assets that start with `#`)
+- Minted through Evrmore `issueunique`
+- IPFS metadata is optional
 - **Status**: ✅ Fully implemented
 
-### 4. NFTs (Non-Fungible Tokens)
-- 1-of-1 assets with IPFS metadata
-- Detected via: amount=1, reissuable=false, has_ipfs=true
-- Integrated with existing Listings NFT functionality
-- **Status**: ✅ Fully implemented
-
-### 5. Vault Assets ⭐ NEW
+### 4. Vault Assets ⭐ NEW
 - Assets with built-in transfer tolls/fees
 - Designed for DeFi operations
 - Toll percentage and recipient address configurable
@@ -38,20 +34,20 @@ This PR successfully integrates all Evrmore blockchain asset types into DeFi-Tom
   - Toll collection tracking
 - **Status**: ✅ Fully implemented
 
-### 6. Messaging Channels
+### 5. Messaging Channels
 - On-chain messaging with ~ in symbol
 - **Status**: ✅ Fully implemented
 
-### 7. Qualifiers
+### 6. Qualifiers
 - Tagging/verification assets (starts with #)
 - Sub-qualifiers (#PARENT/CHILD)
 - **Status**: ✅ Fully implemented
 
-### 8. Restricted Assets
+### 7. Restricted Assets
 - KYC/regulated assets (starts with $)
 - **Status**: ✅ Fully implemented
 
-### 9. Administrator Tokens
+### 8. Administrator Tokens
 - Management tokens (ends with !)
 - **Status**: ✅ Fully implemented
 
@@ -81,7 +77,7 @@ This PR successfully integrates all Evrmore blockchain asset types into DeFi-Tom
 
 #### Wallet/asset_tracking.py
 - Enhanced `classify_asset_type()` to accept optional RPC metadata
-- NFT detection: amount=1, non-reissuable, has IPFS
+- NFT detection: Evrmore unique-asset name (`ROOT#TAG`)
 - Vault detection: has_toll=true in metadata
 - Updated `sync_tracked_assets()` to fetch and store metadata
 
@@ -138,12 +134,8 @@ OK
 - **DeFi**: Multi-token protocols
 - **Example**: COMPANY/STOCK, GAME/GOLD
 
-### Unique Assets
-- **Collectibles**: Limited edition items
-- **Gaming**: In-game items with unique IDs
-- **Example**: TICKET#001, ITEM#123
-
-### NFTs
+### NFTs (Evrmore Unique Assets)
+- **On-chain identity**: `ROOT#TAG` unique assets
 - **Marketplace**: 1-of-1 digital art, collectibles
 - **IPFS**: Image/metadata storage
 - **Royalties**: Future toll-based royalty system

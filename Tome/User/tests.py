@@ -1,6 +1,10 @@
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
+from unittest.mock import patch
+from evrmore_authentication import generate_key_pair, sign_message, verify_message
+
+from .models import EvrmoreAuthenticationAddress
 
 # Create your tests here.
 class RegistrationTestCase(TestCase):
@@ -171,6 +175,24 @@ class LoginTestCase(TestCase):
         # User should be logged in
         user = User.objects.get(username='testuser')
         self.assertTrue(user.is_authenticated)
+
+    def test_login_redirects_to_safe_next_url(self):
+        response = self.client.post(self.login_url, {
+            'username': 'testuser',
+            'password': 'testpass123',
+            'next': reverse('portfolio'),
+        })
+
+        self.assertRedirects(response, reverse('portfolio'))
+
+    def test_login_rejects_external_next_url(self):
+        response = self.client.post(self.login_url, {
+            'username': 'testuser',
+            'password': 'testpass123',
+            'next': 'https://example.test/untrusted',
+        })
+
+        self.assertRedirects(response, reverse('home'))
     
     def test_login_nonexistent_user(self):
         """Test that login redirects to register for non-existent user"""
@@ -257,13 +279,143 @@ class HomePageAuthTestCase(TestCase):
         self.assertIn('/user/home/', response.url)
 
 
+class EvrmoreWalletAuthenticationTestCase(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='walletuser',
+            email='wallet@example.com',
+            password='testpass123',
+        )
+        self.wallet_wif, self.wallet_address = generate_key_pair()
+        self.wallet_login_url = reverse('wallet_login')
+        self.wallet_management_url = reverse('evrmore_wallet_authentication')
+
+    def test_package_signature_round_trip(self):
+        challenge = 'DeFi Tome wallet authentication test challenge'
+        signature = sign_message(challenge, self.wallet_wif)
+
+        self.assertTrue(verify_message(self.wallet_address, signature, challenge))
+        self.assertFalse(verify_message(self.wallet_address, signature, f'{challenge} altered'))
+
+    def test_wallet_management_requires_login(self):
+        response = self.client.get(self.wallet_management_url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('login'), response.url)
+
+    @patch('User.views.create_evrmore_challenge', return_value='wallet-challenge')
+    def test_wallet_management_links_address_after_valid_signature(self, mock_create_challenge):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            self.wallet_management_url,
+            {'action': 'challenge', 'address': self.wallet_address},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['pending_challenge'], 'wallet-challenge')
+        mock_create_challenge.assert_called_once_with(self.wallet_address)
+
+        with patch('User.views.verify_evrmore_signature', return_value=True) as mock_verify_signature:
+            response = self.client.post(
+                self.wallet_management_url,
+                {
+                    'action': 'verify',
+                    'address': self.wallet_address,
+                    'challenge': 'wallet-challenge',
+                    'signature': 'signature',
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            EvrmoreAuthenticationAddress.objects.filter(
+                user=self.user,
+                address=self.wallet_address,
+            ).exists()
+        )
+        mock_verify_signature.assert_called_once_with(
+            self.wallet_address,
+            'wallet-challenge',
+            'signature',
+            request=response.wsgi_request,
+        )
+
+    @patch('User.views.create_evrmore_challenge', return_value='wallet-challenge')
+    def test_wallet_login_creates_django_session_after_valid_signature(self, mock_create_challenge):
+        linked_address = EvrmoreAuthenticationAddress.objects.create(
+            user=self.user,
+            address=self.wallet_address,
+        )
+
+        response = self.client.post(
+            self.wallet_login_url,
+            {'action': 'challenge', 'address': self.wallet_address},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_create_challenge.assert_called_once_with(self.wallet_address)
+
+        with patch('User.backends.verify_evrmore_signature', return_value=True) as mock_verify_signature:
+            response = self.client.post(
+                self.wallet_login_url,
+                {
+                    'action': 'verify',
+                    'address': self.wallet_address,
+                    'challenge': 'wallet-challenge',
+                    'signature': 'signature',
+                },
+            )
+
+        self.assertRedirects(response, reverse('home'))
+        self.assertEqual(str(self.user.pk), self.client.session.get('_auth_user_id'))
+        linked_address.refresh_from_db()
+        self.assertIsNotNone(linked_address.last_authenticated_at)
+        mock_verify_signature.assert_called_once()
+
+    @patch('User.views.create_evrmore_challenge')
+    def test_wallet_login_does_not_issue_challenge_for_unlinked_address(self, mock_create_challenge):
+        response = self.client.post(
+            self.wallet_login_url,
+            {'action': 'challenge', 'address': self.wallet_address},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        mock_create_challenge.assert_not_called()
+
+    @patch('User.views.create_evrmore_challenge', return_value='wallet-challenge')
+    def test_wallet_login_rejects_challenge_from_another_session(self, mock_create_challenge):
+        EvrmoreAuthenticationAddress.objects.create(user=self.user, address=self.wallet_address)
+        self.client.post(
+            self.wallet_login_url,
+            {'action': 'challenge', 'address': self.wallet_address},
+        )
+
+        with patch('User.backends.verify_evrmore_signature') as mock_verify_signature:
+            response = self.client.post(
+                self.wallet_login_url,
+                {
+                    'action': 'verify',
+                    'address': self.wallet_address,
+                    'challenge': 'different-challenge',
+                    'signature': 'signature',
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        mock_verify_signature.assert_not_called()
+
+
 class EmailVerificationTestCase(TestCase):
     def setUp(self):
         self.client = Client()
         self.register_url = reverse('register')
         self.settings_url = reverse('settings')
         self.resend_url = reverse('resend_verification')
-    
+
     def test_email_verification_created_on_registration(self):
         """Test that EmailVerification record is created when user registers"""
         from .models import EmailVerification

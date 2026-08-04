@@ -4,5 +4,10 @@
 .jsonl
 .ipynb
 db.sqlite3
+evrmore_auth.sqlite3
 migrations/
 __pycache__/
+
+# Django migrations are application source and must be versioned.
+!Tome/**/migrations/
+!Tome/**/migrations/*.py

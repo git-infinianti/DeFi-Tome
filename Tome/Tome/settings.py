@@ -135,6 +135,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 # Authentication settings
 LOGIN_URL = '/user/login/'
+AUTHENTICATION_BACKENDS = [
+    'User.backends.EvrmoreWalletBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+EVRMORE_AUTH_DATABASE_PATH = config(
+    'EVRMORE_AUTH_DATABASE_PATH',
+    default=str(BASE_DIR / 'evrmore_auth.sqlite3'),
+)
+EVRMORE_AUTH_JWT_SECRET = config('EVRMORE_AUTH_JWT_SECRET', default=SECRET_KEY)
+EVRMORE_AUTH_CHALLENGE_EXPIRY_MINUTES = config(
+    'EVRMORE_AUTH_CHALLENGE_EXPIRY_MINUTES',
+    default=10,
+    cast=int,
+)
 
 # Email settings
 # Using console backend for development - emails will be printed to console

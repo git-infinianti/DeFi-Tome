@@ -264,7 +264,7 @@
             </div>
             <div class="header-right">
                 <nav>
-                    <a href="{% url 'listings' %}">Listings</a>
+                    <a href="{% url 'listings' %}">Atomic Swaps</a>
                     <a href="{% url 'dex_orderbook' %}">DEX</a>
                     <a href="{% url 'lending_home' %}">Lending</a>
                     <a href="{% url 'my_swap_offers' %}">My Offers</a>
@@ -282,7 +282,7 @@
         <div class="listing-detail">
             <div class="listing-header">
                 <h1 class="listing-title">{{ listing.item.title }}</h1>
-                <div class="listing-seller">Seller: {{ listing.seller.username }}</div>
+                <div class="listing-seller">Offered by: {{ listing.seller.username }}</div>
             </div>
             
             {% if listing.item.is_nft %}
@@ -305,23 +305,23 @@
             
             <div class="listing-details">
                 <div class="detail-box">
-                    <div class="detail-label">Price</div>
+                    <div class="detail-label">EVR per Unit</div>
                     <div class="detail-value">{{ listing.price }} {{ listing.preferred_token }}</div>
                 </div>
                 <div class="detail-box">
-                    <div class="detail-label">Available Quantity</div>
+                    <div class="detail-label">Amount Offered</div>
                     <div class="detail-value">{{ listing.quantity_available }}</div>
                 </div>
                 <div class="detail-box">
-                    <div class="detail-label">Listed On</div>
+                    <div class="detail-label">Created</div>
                     <div class="detail-value" style="font-size: 1rem;">{{ listing.listing_date|date:"M d, Y" }}</div>
                 </div>
                 <div class="detail-box">
-                    <div class="detail-label">Token Offered</div>
+                    <div class="detail-label">Asset Offered</div>
                     <div class="detail-value" style="font-size: 1rem;">{{ listing.token_offered }}</div>
                 </div>
                 <div class="detail-box">
-                    <div class="detail-label">Preferred Token</div>
+                    <div class="detail-label">Settlement Asset</div>
                     <div class="detail-value" style="font-size: 1rem;">{{ listing.preferred_token }}</div>
                 </div>
                 {% if listing.item.is_nft %}
@@ -343,16 +343,16 @@
             {% endif %}
             
             <div class="swap-info">
-                <div class="swap-info-title">💱 Token Exchange</div>
+                <div class="swap-info-title">Atomic Asset Exchange</div>
                 <div class="swap-info-text">
-                    This listing offers <strong>{{ listing.token_offered }}</strong> in exchange for <strong>{{ listing.preferred_token }}</strong>.
+                    This atomic swap offers <strong>{{ listing.token_offered }}</strong> for <strong>{{ listing.preferred_token }}</strong>.
                 </div>
             </div>
             
             <div class="actions">
-                <a href="{% url 'listings' %}" class="btn btn-secondary">Back to Listings</a>
-                {% if listing.seller != request.user %}
-                    <a href="{% url 'create_swap_offer_for_listing' listing.id %}" class="btn btn-primary">Propose Swap</a>
+                <a href="{% url 'listings' %}" class="btn btn-secondary">Back to Atomic Swaps</a>
+                {% if listing.seller != request.user and swap_offer %}
+                    <a href="{% url 'accept_swap_offer' swap_offer.id %}" class="btn btn-primary">Review Atomic Swap</a>
                 {% endif %}
             </div>
         </div>

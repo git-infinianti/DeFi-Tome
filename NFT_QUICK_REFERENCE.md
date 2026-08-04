@@ -1,6 +1,15 @@
 # NFT Feature - Quick Reference Guide
 
-## For Developers
+## Current NFT Flow
+
+1. Mint an NFT as an Evrmore unique asset named `ROOT#TAG` with `POST /api/v1/nfts/mint/`.
+2. Open Atomic Swaps and select that NFT from the wallet asset selector.
+3. Create an asset-for-EVR atomic swap and accept it through the single on-chain settlement transaction.
+
+## Historical Prototype Notes
+
+> The remaining instructions describe the retired local checkbox and UUID flow.
+> They are retained for repository history and are not the current implementation.
 
 ### Testing NFT Creation
 

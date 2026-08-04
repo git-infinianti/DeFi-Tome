@@ -79,7 +79,7 @@ class EvrmoreRPC:
     
     def issue_unique_asset(self, root_name, asset_tags, ipfs_hashes=None, 
                           to_address="", change_address=""):
-        """Issue unique assets"""
+        """Mint Evrmore NFTs as unique assets under an existing root asset."""
         return self.client.issueunique(root_name, asset_tags, ipfs_hashes or [], 
                                       to_address, change_address)
     
@@ -196,10 +196,10 @@ class EvrmoreRPC:
     def issue_nft_asset(self, asset_name, to_address="", change_address="", 
                        ipfs_hash="", description=""):
         """
-        Issue an NFT (1-of-1 unique asset with IPFS metadata).
+        Mint an NFT as an Evrmore unique asset named ROOT#TAG.
         
         Args:
-            asset_name: Name of the NFT asset
+            asset_name: NFT asset name in ROOT#TAG form
             to_address: Destination address
             change_address: Change address
             ipfs_hash: IPFS hash for NFT metadata/image
@@ -208,16 +208,16 @@ class EvrmoreRPC:
         Returns:
             Transaction hash
         """
-        # NFT: quantity=1, units=0, reissuable=False, has_ipfs=True
-        return self.issue_asset(
-            asset_name=asset_name,
-            qty=1,
+        root_name, separator, asset_tag = str(asset_name).partition('#')
+        if not separator or not root_name or not asset_tag or '#' in asset_tag:
+            raise ValueError('NFT asset_name must use the Evrmore ROOT#TAG format.')
+
+        return self.issue_unique_asset(
+            root_name=root_name,
+            asset_tags=[asset_tag],
+            ipfs_hashes=[ipfs_hash] if ipfs_hash else None,
             to_address=to_address,
             change_address=change_address,
-            units=0,
-            reissuable=False,
-            has_ipfs=True,
-            ipfs_hash=ipfs_hash
         )
     
     def verify_asset_ownership(self, asset_name, address):

@@ -8,8 +8,7 @@ Evrmore blockchain has built-in DeFi tools and multiple asset types. This integr
 
 - **Main Assets**: Standard fungible tokens
 - **Sub-Assets**: Hierarchical tokens (e.g., PARENT/CHILD)
-- **Unique Assets**: Collectibles with unique identifiers (e.g., TOKEN#123)
-- **NFTs**: 1-of-1 assets with IPFS metadata (amount=1, non-reissuable)
+- **NFTs (Unique Assets)**: 1-of-1 assets with unique identifiers (e.g., ROOT#123); IPFS metadata is optional
 - **Vault Assets**: Assets with transfer tolls/fees for DeFi operations
 - **Messaging Channels**: Assets for on-chain messaging (contains ~)
 - **Qualifiers**: Tagging/verification assets (starts with #)
@@ -22,7 +21,7 @@ Evrmore blockchain has built-in DeFi tools and multiple asset types. This integr
 The `classify_asset_type()` function in `Wallet/asset_tracking.py` automatically detects asset types based on:
 
 1. **Symbol pattern matching** (for most types)
-2. **RPC metadata** (for NFTs and vault assets)
+2. **RPC metadata** (for vault assets and optional NFT metadata)
 
 ### Symbol-Based Classification
 
@@ -30,7 +29,7 @@ The `classify_asset_type()` function in `Wallet/asset_tracking.py` automatically
 # Examples
 'MYTOKEN'         -> Main Asset
 'PARENT/CHILD'    -> Sub-Asset
-'TOKEN#123'       -> Unique Asset
+'TOKEN#123'       -> NFT (Evrmore unique asset)
 'CHANNEL~'        -> Messaging Channel
 '#QUALIFIER'      -> Qualifier
 '#QUAL/SUB'       -> Sub-Qualifier
@@ -41,11 +40,11 @@ The `classify_asset_type()` function in `Wallet/asset_tracking.py` automatically
 ### Metadata-Based Classification
 
 ```python
-# NFT (requires RPC data)
+# NFT / Evrmore unique asset (recognized by its ROOT#TAG name)
 {
     'amount': 1,
     'reissuable': False,
-    'has_ipfs': True
+    'has_ipfs': True  # Optional metadata
 }
 
 # Vault Asset (requires RPC data)
@@ -127,16 +126,16 @@ get_vault_toll_info(asset_name='MYVAULT')
 ### NFT Operations
 
 ```python
-# Issue an NFT
+# Mint an NFT as an Evrmore unique asset
 issue_nft_asset(
-    asset_name='MYNFT',
+    asset_name='COLLECTION#001',
     ipfs_hash='QmXxxx...',
     description='My NFT artwork'
 )
 
 # Verify ownership
 verify_asset_ownership(
-    asset_name='MYNFT',
+    asset_name='COLLECTION#001',
     address='EVRxxx...'
 )
 ```
@@ -169,13 +168,13 @@ from Wallet.asset_tracking import sync_tracked_assets
 asset_balances = {
     'MYTOKEN': Decimal('100.0'),
     'MYVAULT': Decimal('50.0'),
-    'MYNFT': Decimal('1.0')
+    'COLLECTION#001': Decimal('1.0')
 }
 
 sync_tracked_assets(
     user=request.user,
     asset_balances=asset_balances,
-    fetch_metadata=True  # Enables NFT/vault detection
+    fetch_metadata=True  # Fetches optional NFT/vault metadata
 )
 ```
 

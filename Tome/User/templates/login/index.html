@@ -248,6 +248,9 @@
             
             <form method="POST" action="{% url 'login' %}">
                 {% csrf_token %}
+                {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
                 
                 <div class="form-group">
                     <label for="username">Username</label>
@@ -270,6 +273,10 @@
                 
                 <button type="submit">Sign In</button>
             </form>
+
+            <div class="signup-link">
+                <a href="{% url 'wallet_login' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}">Sign in with an Evrmore wallet</a>
+            </div>
             
             <div class="signup-link">
                 Don't have an account? <a href="{% url 'register' %}">Sign up</a>

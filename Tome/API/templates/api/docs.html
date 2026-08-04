@@ -269,7 +269,7 @@
             <nav>
                 <a href="{% url 'home' %}">Home</a>
                 <a href="{% url 'explorer' %}">Explorer</a>
-                <a href="{% url 'listings' %}">Listings</a>
+                <a href="{% url 'listings' %}">Atomic Swaps</a>
                 <a href="{% url 'portfolio' %}">Portfolio</a>
                 <a href="{% url 'settings' %}">Settings</a>
             </nav>
@@ -595,6 +595,35 @@ X-API-Key: YOUR_API_KEY_HERE</code></pre>
                         <span class="param-name">message</span>
                         <span class="param-type">string</span>
                         <span class="param-desc">Optional message (optional)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="api-endpoint">
+                <div class="endpoint-header">
+                    <span class="http-method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/nfts/mint/</span>
+                    <span class="status-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #fca5a5;">🔒 Auth Required</span>
+                </div>
+                <p class="endpoint-description">
+                    Mint an NFT by issuing an Evrmore unique asset named <code>ROOT#TAG</code>.
+                </p>
+                <div class="param-list">
+                    <h4>Request Body:</h4>
+                    <div class="param-item">
+                        <span class="param-name">root_name</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Existing Evrmore asset root, without the owner-token suffix</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">asset_tag</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Unique NFT tag</span>
+                    </div>
+                    <div class="param-item">
+                        <span class="param-name">ipfs_hash</span>
+                        <span class="param-type">string</span>
+                        <span class="param-desc">Optional IPFS metadata hash</span>
                     </div>
                 </div>
             </div>

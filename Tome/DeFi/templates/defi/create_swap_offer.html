@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeFi Tome - Create Swap Offer</title>
+    <title>DeFi Tome - Create Atomic Swap</title>
     <style>
         * {
             margin: 0;
@@ -233,7 +233,7 @@
             <nav>
                 <a href="{% url 'home' %}">Home</a>
                 <a href="{% url 'explorer' %}">Explorer</a>
-                <a href="{% url 'listings' %}">Listings</a>
+                <a href="{% url 'listings' %}">Atomic Swaps</a>
                 <a href="{% url 'dex_orderbook' %}">DEX</a>
                 <a href="{% url 'lending_home' %}">Lending</a>
             </nav>
@@ -250,7 +250,7 @@
         {% endif %}
         
         <div class="page-header">
-            <h1 class="page-title">Create P2P Swap Offer</h1>
+            <h1 class="page-title">Create Atomic Swap</h1>
             <div class="quick-nav">
                 <a href="{% url 'available_swap_offers' %}" class="btn-nav">← Back to Swaps</a>
                 <a href="{% url 'my_swap_offers' %}" class="btn-nav">My Offers</a>
@@ -328,7 +328,7 @@
                 
                 <div class="form-actions">
                     <a href="{% url 'available_swap_offers' %}" class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Create Swap Offer</button>
+                    <button type="submit" class="btn btn-primary">Create Atomic Swap</button>
                 </div>
             </form>
         </div>

@@ -18,6 +18,7 @@ urlpatterns = [
     path('v1/assets/<str:asset_name>/', views.asset_detail, name='asset_detail'),
     path('v1/assets/issue/', views.asset_issue, name='asset_issue'),
     path('v1/assets/transfer/', views.asset_transfer, name='asset_transfer'),
+    path('v1/nfts/mint/', views.nft_mint, name='nft_mint'),
     
     # Blockchain Queries
     path('v1/blockchain/info/', views.blockchain_info, name='blockchain_info'),

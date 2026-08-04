@@ -119,6 +119,25 @@ npm install && npm run dev
 
 Visit `http://localhost:8000` to access the platform.
 
+### Evrmore Wallet Sign-In
+
+Evrmore wallet sign-in is available alongside username/password authentication.
+An authenticated user links an external Evrmore P2PKH address from **Settings >
+Security**, proves ownership by signing a one-time challenge, and can then use
+that wallet to start a normal Django session from `/user/wallet-login/`.
+
+Set these environment variables in production:
+
+```ini
+EVRMORE_AUTH_DATABASE_PATH=/var/lib/defitome/evrmore_auth.sqlite3
+EVRMORE_AUTH_JWT_SECRET=use-a-separate-random-secret-with-at-least-32-bytes
+EVRMORE_AUTH_CHALLENGE_EXPIRY_MINUTES=10
+```
+
+The package's challenge state is stored in `EVRMORE_AUTH_DATABASE_PATH`. Django
+remains the browser session authority; the package-issued JWT is invalidated
+immediately after signature verification and is never returned to the browser.
+
 ### Testnet Access
 
 **Coming Soon:** Public testnet endpoint and faucet.

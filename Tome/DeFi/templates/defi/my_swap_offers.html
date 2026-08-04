@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeFi Tome - My Swap Offers</title>
+    <title>DeFi Tome - My Atomic Swaps</title>
     <style>
         * {
             margin: 0;
@@ -268,7 +268,7 @@
             <nav>
                 <a href="{% url 'home' %}">Home</a>
                 <a href="{% url 'explorer' %}">Explorer</a>
-                <a href="{% url 'listings' %}">Listings</a>
+                <a href="{% url 'listings' %}">Atomic Swaps</a>
                 <a href="{% url 'dex_orderbook' %}">DEX</a>
                 <a href="{% url 'lending_home' %}">Lending</a>
             </nav>
@@ -285,7 +285,7 @@
         {% endif %}
         
         <div class="page-header">
-            <h1 class="page-title">My Swap Offers</h1>
+            <h1 class="page-title">My Atomic Swaps</h1>
             <div class="quick-nav">
                 <a href="{% url 'create_swap_offer' %}" class="btn-nav">+ Create Offer</a>
                 <a href="{% url 'available_swap_offers' %}" class="btn-nav">Available Swaps</a>
@@ -350,8 +350,8 @@
             </div>
         {% else %}
             <div class="empty-state">
-                <h2>No Swap Offers Yet</h2>
-                <p>Create your first swap offer to get started!</p>
+                <h2>No Atomic Swaps Yet</h2>
+                <p>Create your first atomic swap to get started!</p>
             </div>
         {% endif %}
     </div>

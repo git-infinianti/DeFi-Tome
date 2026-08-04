@@ -34,9 +34,9 @@ def classify_asset_type(symbol: str, asset_data: dict = None) -> str:
     if '~' in symbol:
         return TrackedAsset.ASSET_TYPE_MESSAGING
     
-    # Unique asset/NFT (contains # but doesn't start with it)
+    # Evrmore unique assets are the on-chain representation of NFTs.
     if '#' in symbol:
-        return TrackedAsset.ASSET_TYPE_UNIQUE
+        return TrackedAsset.ASSET_TYPE_NFT
     
     # Check if it's a vault asset (has toll enabled) using RPC data
     if asset_data and asset_data.get('has_toll', False):

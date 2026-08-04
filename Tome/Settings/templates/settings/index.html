@@ -301,7 +301,7 @@
             <nav>
                 <a href="{% url 'home' %}">Home</a>
                 <a href="{% url 'explorer' %}">Explorer</a>
-                <a href="{% url 'listings' %}">Listings</a>
+                <a href="{% url 'listings' %}">Atomic Swaps</a>
                 <a href="{% url 'portfolio' %}">Portfolio</a>
                 <a href="{% url 'api_docs' %}">Docs</a>
                 <form method="post" action="{% url 'logout' %}" class="logout-form">
@@ -490,6 +490,13 @@
                         <div class="description">Add an extra layer of security</div>
                     </div>
                     <button>Enable</button>
+                </div>
+                <div class="settings-item">
+                    <div>
+                        <label>Evrmore Wallet Sign-In</label>
+                        <div class="description">Manage wallet addresses allowed to sign in</div>
+                    </div>
+                    <a href="{% url 'evrmore_wallet_authentication' %}" style="display: inline-block; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; border-radius: 8px; text-decoration: none; font-weight: 600;">Manage</a>
                 </div>
             </div>
         </div>

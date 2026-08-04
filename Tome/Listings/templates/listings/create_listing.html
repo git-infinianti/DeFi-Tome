@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeFi Tome - Create Listing</title>
+    <title>DeFi Tome - Create Atomic Swap</title>
     <style>
         * {
             margin: 0;
@@ -288,7 +288,7 @@
                 <nav>
                     <a href="{% url 'home' %}">Home</a>
                     <a href="{% url 'explorer' %}">Explorer</a>
-                    <a href="{% url 'listings' %}">Listings</a>
+                    <a href="{% url 'listings' %}">Atomic Swaps</a>
                     <a href="{% url 'markets' %}">Markets</a>
                     <a href="{% url 'dex_orderbook' %}">DEX</a>
                     <a href="{% url 'lending_home' %}">Lending</a>
@@ -306,8 +306,8 @@
         </header>
         
         <section class="page-title">
-            <h1>Create New Listing & Swap Offer</h1>
-            <p>List your assets and automatically create a P2P swap offer</p>
+            <h1>Create Atomic Swap</h1>
+            <p>Offer an Evrmore asset for EVR in one on-chain settlement transaction.</p>
         </section>
         
         {% if messages %}
@@ -325,32 +325,32 @@
                 {% csrf_token %}
                 
                 <div class="form-group">
-                    <label for="title">Item Title</label>
+                    <label for="title">Asset Title</label>
                     <input 
                         type="text" 
                         id="title" 
                         name="title" 
-                        placeholder="e.g., Bitcoin, Ethereum NFT, etc."
+                        placeholder="e.g., Collection Piece #001"
                         value="{{ title|default:'' }}"
                         maxlength="200"
                         required
                     >
-                    <div class="help-text">Give your listing a clear, descriptive title</div>
+                    <div class="help-text">A concise title for this atomic swap.</div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="description">Description</label>
+                    <label for="description">Asset Description</label>
                     <textarea 
                         id="description" 
                         name="description" 
                         placeholder="Describe your item in detail..."
                         required
                     >{{ description|default:'' }}</textarea>
-                    <div class="help-text">Provide details about your item, its condition, and any relevant information</div>
+                    <div class="help-text">Add context for the counterparty.</div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="price" id="price-label">Price (<span id="price-token">EVR</span>)</label>
+                    <label for="price">EVR per Unit</label>
                     <input 
                         type="number" 
                         id="price" 
@@ -361,11 +361,11 @@
                         value="{{ price|default:'' }}"
                         required
                     >
-                    <div class="help-text">Set your price in the preferred token (up to 8 decimal places)</div>
+                    <div class="help-text">The EVR amount requested for each unit.</div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="quantity">Quantity Available</label>
+                    <label for="quantity">Amount Offered</label>
                     <input 
                         type="number" 
                         id="quantity" 
@@ -377,53 +377,46 @@
                         readonly
                         required
                     >
-                    <div class="help-text" id="quantity-help-text">Auto-filled from your wallet balance for the selected asset.</div>
+                    <div class="help-text">Uses the available balance for the selected asset.</div>
                 </div>
                 
                 <div class="form-group" id="token-offered-group">
-                    <label for="token_offered">Token Offered *</label>
+                    <label for="token_offered">Asset Offered *</label>
                     <select id="token_offered" name="token_offered" required>
-                        <option value="">Select a token</option>
+                        <option value="">Select an asset</option>
                         {% for asset in asset_options %}
                             <option value="{{ asset.symbol }}" data-balance="{{ asset.balance_value }}" {% if token_offered == asset.symbol %}selected{% endif %}>
-                                {{ asset.symbol }} ({{ asset.balance_display }})
+                                {{ asset.symbol }}{% if asset.is_nft %} (NFT){% endif %} - {{ asset.balance_display }}
                             </option>
                         {% endfor %}
                     </select>
-                    <div class="help-text">Available assets from your wallet balance.</div>
+                    <div class="help-text">Unique assets named ROOT#TAG are NFTs.</div>
                     {% if not asset_options %}
                         <div class="help-text" style="color: var(--text-muted);">No assets found in your wallet.</div>
                     {% endif %}
                 </div>
                 
                 <div class="form-group">
-                    <label for="preferred_token">Preferred Token *</label>
-                    <select id="preferred_token" name="preferred_token" required>
-                        <option value="EVR" {% if preferred_token == 'EVR' or not preferred_token %}selected{% endif %}>EVR</option>
-                        {% for asset in asset_options %}
-                            <option value="{{ asset.symbol }}" {% if preferred_token == asset.symbol %}selected{% endif %}>
-                                {{ asset.symbol }} ({{ asset.balance_display }})
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <div class="help-text">The token you want in exchange - defaults to EVR</div>
+                    <label for="preferred_token">Settlement Asset</label>
+                    <input id="preferred_token" name="preferred_token" value="EVR" readonly>
+                    <div class="help-text">Atomic swaps currently settle in EVR.</div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="counterparty">Specific Counterparty (Optional)</label>
+                    <label for="counterparty">Counterparty (Optional)</label>
                     <select id="counterparty" name="counterparty">
-                        <option value="">Public Offer (Anyone)</option>
+                        <option value="">Any counterparty</option>
                         {% for user in all_users %}
                             <option value="{{ user.username }}" {% if counterparty == user.username %}selected{% endif %}>
                                 {{ user.username }}
                             </option>
                         {% endfor %}
                     </select>
-                    <div class="help-text">Select a specific user or leave as public to make this swap offer available to anyone</div>
+                    <div class="help-text">Leave empty to publish a public atomic swap.</div>
                 </div>
                 
                 <div class="form-group">
-                    <label for="expiry_days">Offer Expiry (Days)</label>
+                    <label for="expiry_days">Atomic Swap Expiry (Days)</label>
                     <input 
                         type="number" 
                         id="expiry_days" 
@@ -433,40 +426,12 @@
                         value="7"
                         required
                     >
-                    <div class="help-text">Number of days until the swap offer expires (1-365)</div>
-                </div>
-                
-                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 2rem 0;">
-                
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input 
-                            type="checkbox" 
-                            id="is_nft" 
-                            name="is_nft" 
-                            value="true"
-                            style="width: auto; cursor: pointer;"
-                        >
-                        <span style="cursor: pointer;">Create as NFT (1 of 1)</span>
-                    </label>
-                    <div class="help-text">Convert this listing into a unique NFT asset with 1-of-1 quantity</div>
-                </div>
-                
-                <div class="form-group" id="nft-image-group" style="display: none;">
-                    <label for="nft_image_ipfs_cid">NFT Image IPFS CID (Optional)</label>
-                    <input 
-                        type="text" 
-                        id="nft_image_ipfs_cid" 
-                        name="nft_image_ipfs_cid" 
-                        placeholder="e.g., QmXxxx... or bafyxxx..."
-                        maxlength="100"
-                    >
-                    <div class="help-text">Enter an IPFS Content Identifier (CID) for your NFT image. Leave empty if you don't have one.</div>
+                    <div class="help-text">The offer expires after this many days.</div>
                 </div>
                 
                 <div class="form-actions">
                     <a href="{% url 'listings' %}" class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary" {% if not asset_options %}disabled{% endif %}>Create Listing & Swap Offer</button>
+                    <button type="submit" class="btn btn-primary" {% if not asset_options %}disabled{% endif %}>Create Atomic Swap</button>
                 </div>
             </form>
         </div>
@@ -475,22 +440,10 @@
         document.addEventListener('DOMContentLoaded', () => {
             const tokenSelect = document.getElementById('token_offered');
             const quantityInput = document.getElementById('quantity');
-            const preferredTokenSelect = document.getElementById('preferred_token');
-            const priceTokenSpan = document.getElementById('price-token');
-            const isNftCheckbox = document.getElementById('is_nft');
-            const nftImageGroup = document.getElementById('nft-image-group');
-            const tokenOfferedGroup = document.getElementById('token-offered-group');
-            const quantityHelpText = document.getElementById('quantity-help-text');
 
             const updateQuantity = () => {
                 if (!tokenSelect || !quantityInput) return;
-                
-                // If NFT is checked, lock quantity to 1
-                if (isNftCheckbox && isNftCheckbox.checked) {
-                    quantityInput.value = '1.00000000';
-                    return;
-                }
-                
+
                 const selectedOption = tokenSelect.options[tokenSelect.selectedIndex];
                 const balance = selectedOption ? selectedOption.dataset.balance : '';
                 if (!balance) {
@@ -500,53 +453,9 @@
                 quantityInput.value = balance;
             };
 
-            const updatePriceLabel = () => {
-                if (!preferredTokenSelect || !priceTokenSpan) return;
-                const selectedToken = preferredTokenSelect.value || 'EVR';
-                priceTokenSpan.textContent = selectedToken;
-            };
-
-            const toggleNftGroup = () => {
-                if (!isNftCheckbox || !nftImageGroup) return;
-                const isNft = isNftCheckbox.checked;
-                
-                // Show/hide NFT image group
-                nftImageGroup.style.display = isNft ? 'block' : 'none';
-                
-                // Hide/show token offered group
-                if (tokenOfferedGroup) {
-                    tokenOfferedGroup.style.display = isNft ? 'none' : 'block';
-                    // Remove required attribute when hidden
-                    if (tokenSelect) {
-                        tokenSelect.required = !isNft;
-                    }
-                }
-                
-                // Update quantity field
-                if (quantityInput && quantityHelpText) {
-                    if (isNft) {
-                        quantityInput.value = '1.00000000';
-                        quantityHelpText.textContent = 'NFTs are unique 1-of-1 assets with quantity locked at 1.';
-                    } else {
-                        quantityHelpText.textContent = 'Auto-filled from your wallet balance for the selected asset.';
-                        updateQuantity();
-                    }
-                }
-            };
-
             if (tokenSelect) {
                 tokenSelect.addEventListener('change', updateQuantity);
                 updateQuantity();
-            }
-
-            if (preferredTokenSelect) {
-                preferredTokenSelect.addEventListener('change', updatePriceLabel);
-                updatePriceLabel();
-            }
-
-            if (isNftCheckbox) {
-                isNftCheckbox.addEventListener('change', toggleNftGroup);
-                toggleNftGroup();
             }
         });
     </script>

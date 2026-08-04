@@ -1,7 +1,91 @@
-from django.test import TestCase, Client
-from django.contrib.auth.models import User
+from datetime import timedelta
 from decimal import Decimal
-from .models import LiquidityPool, LiquidityPosition, SwapTransaction, PriceFeedSource, PriceFeedData, PriceFeedAggregation
+from unittest.mock import patch
+
+from django.contrib.auth.models import User
+from django.test import TestCase, Client
+from django.urls import reverse
+from django.utils import timezone
+from .models import (
+    LiquidityPool,
+    LiquidityPosition,
+    P2PSwapTransaction,
+    PriceFeedSource,
+    PriceFeedData,
+    PriceFeedAggregation,
+    SwapEscrow,
+    SwapOffer,
+    SwapTransaction,
+)
+
+
+class AtomicSwapAcceptanceTestCase(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user(username='seller', password='testpass123')
+        self.buyer = User.objects.create_user(username='buyer', password='testpass123')
+        self.swap_offer = SwapOffer.objects.create(
+            initiator=self.seller,
+            offer_token='COLLECTIBLE#1',
+            offer_amount=Decimal('1'),
+            request_token='EVR',
+            request_amount=Decimal('2'),
+            expires_at=timezone.now() + timedelta(days=1),
+        )
+        self.client = Client()
+
+    @patch('DeFi.views.sign_and_broadcast_raw_transaction', return_value='chain-transaction-id')
+    @patch('DeFi.views.create_raw_atomic_asset_evr_swap_transaction', return_value={'raw_tx': 'raw-swap'})
+    @patch('DeFi.views._derive_user_wif_for_address', side_effect=['seller-wif', 'buyer-wif'])
+    @patch('DeFi.views._get_user_primary_address', side_effect=['seller-address', 'buyer-address'])
+    def test_acceptance_records_only_a_broadcast_transaction(
+        self,
+        mock_primary_address,
+        mock_derive_wif,
+        mock_create_raw_swap,
+        mock_broadcast,
+    ):
+        self.client.login(username='buyer', password='testpass123')
+
+        response = self.client.post(reverse('accept_swap_offer', args=[self.swap_offer.id]))
+
+        self.assertRedirects(response, reverse('my_swap_history'))
+        self.swap_offer.refresh_from_db()
+        self.assertEqual(self.swap_offer.status, 'completed')
+        self.assertEqual(self.swap_offer.settlement_txid, 'chain-transaction-id')
+        self.assertEqual(P2PSwapTransaction.objects.get().tx_hash, 'chain-transaction-id')
+        self.assertFalse(SwapEscrow.objects.filter(swap_offer=self.swap_offer).exists())
+        mock_create_raw_swap.assert_called_once_with(
+            seller_address='seller-address',
+            buyer_address='buyer-address',
+            asset_name='COLLECTIBLE#1',
+            asset_quantity=Decimal('1'),
+            payment_evr=Decimal('2'),
+        )
+        mock_broadcast.assert_called_once_with(
+            'raw-swap',
+            wif_keys=['seller-wif', 'buyer-wif'],
+        )
+
+    @patch('DeFi.views.sign_and_broadcast_raw_transaction', side_effect=RuntimeError('network timeout'))
+    @patch('DeFi.views.create_raw_atomic_asset_evr_swap_transaction', return_value={'raw_tx': 'raw-swap'})
+    @patch('DeFi.views._derive_user_wif_for_address', side_effect=['seller-wif', 'buyer-wif'])
+    @patch('DeFi.views._get_user_primary_address', side_effect=['seller-address', 'buyer-address'])
+    def test_broadcast_failure_requires_reconciliation(
+        self,
+        mock_primary_address,
+        mock_derive_wif,
+        mock_create_raw_swap,
+        mock_broadcast,
+    ):
+        self.client.login(username='buyer', password='testpass123')
+
+        response = self.client.post(reverse('accept_swap_offer', args=[self.swap_offer.id]))
+
+        self.assertRedirects(response, reverse('available_swap_offers'))
+        self.swap_offer.refresh_from_db()
+        self.assertEqual(self.swap_offer.status, 'settling')
+        self.assertIn('reconciliation', self.swap_offer.settlement_error)
+        self.assertFalse(P2PSwapTransaction.objects.filter(swap_offer=self.swap_offer).exists())
 
 class FeeDistributionTestCase(TestCase):
     """Test cases for community liquidity fee distribution"""

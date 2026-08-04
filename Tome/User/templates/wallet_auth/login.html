@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi Tome - Evrmore Wallet Sign-In</title>
+    <style>
+        :root {
+            --bg-start: #0f172a;
+            --bg-end: #1e293b;
+            --surface: rgba(30, 41, 59, 0.9);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: rgba(148, 163, 184, 0.25);
+            --input: rgba(15, 23, 42, 0.55);
+            --accent: #3b82f6;
+            --accent-dark: #2563eb;
+            --error: #fca5a5;
+            --error-bg: rgba(239, 68, 68, 0.18);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            align-items: center;
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+            color: var(--text);
+            display: flex;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            justify-content: center;
+            margin: 0;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        main {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 480px;
+            padding: 2rem;
+            width: 100%;
+        }
+
+        h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
+        p { color: var(--muted); line-height: 1.5; margin: 0 0 1.5rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+        .field { margin-bottom: 1.25rem; }
+
+        input, textarea {
+            background: var(--input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font: inherit;
+            padding: 0.75rem;
+            width: 100%;
+        }
+
+        textarea { min-height: 8rem; resize: vertical; }
+        input:focus, textarea:focus { border-color: var(--accent); outline: none; }
+
+        button {
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            border: 0;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font: inherit;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            width: 100%;
+        }
+
+        .secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            margin-top: 0.75rem;
+        }
+
+        .message {
+            background: var(--error-bg);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 6px;
+            color: var(--error);
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+        }
+
+        .links { margin-top: 1.25rem; text-align: center; }
+        a { color: #93c5fd; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Evrmore Wallet Sign-In</h1>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message" role="alert">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        {% if challenge %}
+            <p>Sign the message with the selected wallet, then enter the resulting signature.</p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="verify">
+                <input type="hidden" name="address" value="{{ address }}">
+                <input type="hidden" name="challenge" value="{{ challenge }}">
+                {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
+                <div class="field">
+                    <label for="challenge">Message to sign</label>
+                    <textarea id="challenge" readonly>{{ challenge }}</textarea>
+                </div>
+                <div class="field">
+                    <label for="signature">Wallet signature</label>
+                    <textarea id="signature" name="signature" required></textarea>
+                </div>
+                <button type="submit">Sign In</button>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="cancel">
+                {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
+                <button class="secondary" type="submit">Use Another Wallet</button>
+            </form>
+        {% else %}
+            <p>Authenticate with a wallet already linked to your account.</p>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="challenge">
+                {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
+                <div class="field">
+                    <label for="address">Evrmore address</label>
+                    <input id="address" name="address" maxlength="128" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+                </div>
+                <button type="submit">Create Challenge</button>
+            </form>
+        {% endif %}
+
+        <div class="links">
+            <a href="{% url 'login' %}{% if next_url %}?next={{ next_url|urlencode }}{% endif %}">Sign in with password</a>
+        </div>
+    </main>
+</body>
+</html>

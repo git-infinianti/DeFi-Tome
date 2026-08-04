@@ -311,13 +311,13 @@ def _sync_markets_from_address(address):
 # Create your views here.
 @login_required
 def listings(request):
-    """Display all available listings"""
+    """Display all available atomic swaps."""
     all_listings = Listing.objects.all().select_related('item', 'seller').order_by('-listing_date')
     return render(request, 'listings/index.html', {'listings': all_listings})
 
 @login_required
 def create_listing(request):
-    """Create a new listing with automatic swap offer creation and optional NFT creation"""
+    """Create an atomic asset-for-EVR swap offer from a wallet asset."""
     from DeFi.models import SwapOffer
     from django.utils import timezone
     from datetime import timedelta
@@ -329,6 +329,7 @@ def create_listing(request):
             'symbol': symbol,
             'balance_display': _format_asset_amount(balance),
             'balance_value': _format_asset_amount(balance),
+            'is_nft': '#' in symbol and not symbol.startswith('#'),
         }
         for symbol, balance in sorted(asset_balances.items(), key=lambda item: item[0])
     ]
@@ -337,7 +338,7 @@ def create_listing(request):
     all_users = User.objects.exclude(id=request.user.id).filter(is_active=True).order_by('username')
 
     if balance_error == 'no_wallet':
-        messages.error(request, 'No wallet found. Please create a wallet before listing assets.')
+        messages.error(request, 'No wallet found. Please create a wallet before creating an atomic swap.')
     elif balance_error and balance_error.startswith('rpc_error'):
         messages.error(request, 'Unable to fetch asset balances from RPC. Please try again.')
     elif balance_error == 'invalid_response':
@@ -352,22 +353,12 @@ def create_listing(request):
         counterparty_username = request.POST.get('counterparty', '').strip()  # Optional specific counterparty
         expiry_days = request.POST.get('expiry_days', '7').strip()  # Default 7 days
         
-        # NFT fields
-        is_nft = request.POST.get('is_nft', 'false').lower() == 'true'
-        nft_image_ipfs_cid = request.POST.get('nft_image_ipfs_cid', '').strip() if is_nft else None
-
-        # For NFTs, set token_offered to 'NFT' and quantity to 1
-        if is_nft:
-            token_offered = 'NFT'
-            quantity = '1'
-            selected_balance = Decimal('1')
-        else:
-            selected_balance = asset_balances.get(token_offered)
-            quantity = None
-            if selected_balance is not None:
-                quantity = _format_asset_amount(selected_balance)
+        is_nft = '#' in token_offered and not token_offered.startswith('#')
+        nft_image_ipfs_cid = None
+        selected_balance = asset_balances.get(token_offered)
+        quantity = _format_asset_amount(selected_balance) if selected_balance is not None else None
         
-        # Validate token fields are mandatory and alphanumeric (skip token_offered validation for NFTs)
+        # Validate token fields are mandatory.
         if is_nft:
             if not preferred_token:
                 messages.error(request, 'Preferred token is required.')
@@ -387,18 +378,8 @@ def create_listing(request):
                 })
         
         
-        # NFT validation: must be 1 of 1, and image IPFS CID is optional but valid if provided
-        if is_nft:
-            if nft_image_ipfs_cid and len(nft_image_ipfs_cid) > 100:
-                messages.error(request, 'IPFS CID must not exceed 100 characters.')
-                return render(request, 'listings/create_listing.html', {
-                    'title': title, 'description': description, 'price': price, 'quantity': quantity,
-                    'token_offered': token_offered, 'preferred_token': preferred_token,
-                    'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users,
-                    'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
-                })
-        
-        # Validate token symbols are alphanumeric (skip token_offered for NFTs)
+        # The offered asset is validated against the wallet balance below. Evrmore
+        # asset names can include characters such as / and #.
         if is_nft:
             if not preferred_token.isalnum():
                 messages.error(request, 'Token symbols must be alphanumeric only.')
@@ -409,7 +390,7 @@ def create_listing(request):
                     'is_nft': is_nft, 'nft_image_ipfs_cid': nft_image_ipfs_cid
                 })
         else:
-            if not token_offered.isalnum() or not preferred_token.isalnum():
+            if not preferred_token.isalnum():
                 messages.error(request, 'Token symbols must be alphanumeric only.')
                 return render(request, 'listings/create_listing.html', {
                     'title': title, 'description': description, 'price': price, 'quantity': quantity,
@@ -425,7 +406,14 @@ def create_listing(request):
                 'token_offered': token_offered, 'preferred_token': preferred_token,
                 'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
-        
+
+        if preferred_token != 'EVR':
+            messages.error(request, 'Atomic swaps currently settle in EVR only.')
+            return render(request, 'listings/create_listing.html', {
+                'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
+            })
         
         # Validate required fields
         if not title or not description or not price:
@@ -445,8 +433,8 @@ def create_listing(request):
                 'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
             })
         
-        if len(token_offered) > 10 or len(preferred_token) > 10:
-            messages.error(request, 'Token symbols must not exceed 10 characters.')
+        if len(token_offered) > 255 or len(preferred_token) > 255:
+            messages.error(request, 'Asset identifiers must not exceed 255 characters.')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
@@ -478,6 +466,20 @@ def create_listing(request):
                     'token_offered': token_offered, 'preferred_token': preferred_token,
                     'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
                 })
+
+        if is_nft and (
+            not asset_balances
+            or token_offered not in asset_balances
+            or selected_balance is None
+            or selected_balance <= 0
+        ):
+            messages.error(request, 'Selected NFT is not available in your wallet.')
+            return render(request, 'listings/create_listing.html', {
+                'title': title, 'description': description, 'price': price, 'quantity': quantity,
+                'token_offered': token_offered, 'preferred_token': preferred_token,
+                'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users,
+                'is_nft': is_nft,
+            })
         
         
         # Validate numeric fields
@@ -534,7 +536,7 @@ def create_listing(request):
                 from django.contrib.auth.models import User
                 counterparty = User.objects.get(username=counterparty_username)
                 if counterparty == request.user:
-                    messages.error(request, 'Cannot create swap offer with yourself.')
+                    messages.error(request, 'Cannot create an atomic swap with yourself.')
                     return render(request, 'listings/create_listing.html', {
                         'title': title, 'description': description, 'price': price, 'quantity': quantity,
                         'token_offered': token_offered, 'preferred_token': preferred_token,
@@ -548,7 +550,7 @@ def create_listing(request):
                     'asset_options': asset_options, 'asset_balances': asset_balances, 'all_users': all_users
                 })
         
-        # Create the listing item and listing with swap offer in atomic transaction
+        # Create the backing records for an atomic swap offer.
         try:
             with transaction.atomic():
                 # Create the listing item
@@ -572,15 +574,15 @@ def create_listing(request):
                     preferred_token=preferred_token
                 )
                 
-                # Create NFT if is_nft is True
+                # A unique Evrmore asset is the on-chain NFT identifier.
                 if is_nft:
                     from .models import NFT
-                    nft = NFT.objects.create(
+                    NFT.objects.create(
                         listing_item=item,
                         owner=request.user,
                         creator=request.user,
-                        image_ipfs_cid=nft_image_ipfs_cid or '',
-                        token_id=f'nft-{uuid.uuid4()}',
+                        image_ipfs_cid='',
+                        token_id=token_offered,
                         is_listed=True
                     )
                 
@@ -595,15 +597,15 @@ def create_listing(request):
                     request_token=preferred_token,
                     request_amount=price_decimal * quantity_decimal,  # Total price requested
                     expires_at=expires_at,
-                    escrow_id=f'escrow-{uuid.uuid4()}'
+                    escrow_id=f'atomic-swap-{uuid.uuid4()}'
                 )
                 
-                listing_type = 'NFT listing' if is_nft else 'listing'
-                messages.success(request, f'{listing_type.capitalize()} and swap offer created successfully! Expires in {expiry_days_int} days.')
+                offer_type = 'NFT atomic swap' if is_nft else 'atomic swap'
+                messages.success(request, f'{offer_type.capitalize()} created successfully. Expires in {expiry_days_int} days.')
                 return redirect('listings')
                 
         except Exception as e:
-            messages.error(request, f'Error creating listing: {str(e)}')
+            messages.error(request, f'Error creating atomic swap: {str(e)}')
             return render(request, 'listings/create_listing.html', {
                 'title': title, 'description': description, 'price': price, 'quantity': quantity,
                 'token_offered': token_offered, 'preferred_token': preferred_token,
@@ -619,7 +621,7 @@ def create_listing(request):
 
 @login_required
 def listing_detail(request, listing_id):
-    """Display detailed view of a listing"""
+    """Display an atomic swap offer and its on-chain asset details."""
     listing = get_object_or_404(Listing.objects.select_related('item', 'seller'), id=listing_id)
     
     # Get NFT if this is an NFT listing
@@ -629,11 +631,17 @@ def listing_detail(request, listing_id):
             nft = listing.item.nft
         except:
             nft = None
+
+    swap_offer = listing.swap_offers.filter(
+        status='pending',
+        expires_at__gt=timezone.now(),
+    ).first()
     
     context = {
         'listing': listing,
         'nft': nft,
         'nft_image_url': nft.get_ipfs_url() if nft else None,
+        'swap_offer': swap_offer,
     }
     return render(request, 'listings/listing_detail.html', context)
 

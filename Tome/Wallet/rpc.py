@@ -1,7 +1,7 @@
 from decouple import config
 from evrmore_rpc import EvrmoreClient
 from collections import OrderedDict
-from decimal import Decimal, ROUND_DOWN, ROUND_UP
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_UP
 
 RPC = EvrmoreClient(datadir=config('RPC_DATADIR', default='/tmp/evrmore'))
 
@@ -182,6 +182,15 @@ def _amount_from_utxo(utxo_item):
     )
 
 
+def _asset_amount_from_utxo(utxo_item):
+    return (
+        utxo_item.get('assetAmount')
+        or utxo_item.get('assetamount')
+        or utxo_item.get('amount')
+        or 0
+    )
+
+
 def _find_authorization_input(utxos, authorization_asset_name, sequence=None):
     if not authorization_asset_name:
         return None
@@ -240,6 +249,9 @@ def _select_evr_inputs(address, required_satoshis, locktime=0, replaceable=False
     include_sequence = sequence != MAX_SEQUENCE
 
     for utxo_item in utxos:
+        if _asset_name_from_utxo(utxo_item):
+            continue
+
         satoshis = int(utxo_item.get('satoshis', 0))
         if satoshis <= 0:
             continue
@@ -256,6 +268,46 @@ def _select_evr_inputs(address, required_satoshis, locktime=0, replaceable=False
         raise Exception(f'Insufficient EVR balance. Needed: {needed}, available: {available}.')
 
     return selected_inputs, total_selected
+
+
+def _select_asset_inputs(address, asset_name, required_quantity, locktime=0, replaceable=False):
+    required_quantity = Decimal(str(required_quantity))
+    if required_quantity <= 0:
+        raise Exception('Asset quantity must be greater than zero.')
+
+    normalized_asset_name = str(asset_name).upper()
+    sequence = _sequence_for_input(locktime=locktime, replaceable=replaceable)
+    include_sequence = sequence != MAX_SEQUENCE
+    selected_inputs = []
+    selected_quantity = Decimal('0')
+    selected_satoshis = 0
+
+    for utxo_item in _get_address_utxos(address):
+        utxo_asset_name = _asset_name_from_utxo(utxo_item)
+        if not utxo_asset_name or str(utxo_asset_name).upper() != normalized_asset_name:
+            continue
+
+        try:
+            asset_amount = Decimal(str(_asset_amount_from_utxo(utxo_item)))
+        except (InvalidOperation, TypeError, ValueError):
+            continue
+
+        if asset_amount <= 0:
+            continue
+
+        selected_inputs.append(_build_input_entry(utxo_item, sequence if include_sequence else None))
+        selected_quantity += asset_amount
+        selected_satoshis += int(utxo_item.get('satoshis', 0))
+
+        if selected_quantity >= required_quantity:
+            break
+
+    if selected_quantity < required_quantity:
+        raise Exception(
+            f'Insufficient {asset_name} balance. Needed: {required_quantity}, available: {selected_quantity}.'
+        )
+
+    return selected_inputs, selected_quantity, selected_satoshis
 
 
 def _select_inputs_for_operation(from_address, required_evr_satoshis,
@@ -734,6 +786,162 @@ def create_and_send_asset_transfer_transaction(from_address, to_address, asset_n
         asset_name=asset_name,
         asset_quantity=asset_quantity,
         change_address=change_address,
+        fee_evr=fee_evr,
+        fee_conf_target=fee_conf_target,
+        fee_estimate_mode=fee_estimate_mode,
+        locktime=locktime,
+        replaceable=replaceable,
+    )
+    txid = sign_and_broadcast_raw_transaction(tx_data['raw_tx'], wif_keys=wif_keys)
+
+    return {
+        'txid': txid,
+        **tx_data,
+    }
+
+
+def create_raw_atomic_asset_evr_swap_transaction(
+    seller_address,
+    buyer_address,
+    asset_name,
+    asset_quantity,
+    payment_evr,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
+    locktime=0,
+    replaceable=False,
+):
+    """Create a single Evrmore transaction that exchanges an asset for EVR."""
+    if not seller_address or not buyer_address:
+        raise Exception('Seller and buyer addresses are required.')
+    if seller_address == buyer_address:
+        raise Exception('Seller and buyer addresses must be different.')
+    if not asset_name:
+        raise Exception('Asset name is required.')
+
+    try:
+        asset_quantity_decimal = Decimal(str(asset_quantity))
+        payment_decimal = Decimal(str(payment_evr))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise Exception('Asset quantity and EVR payment must be valid decimal values.') from exc
+
+    if asset_quantity_decimal <= 0 or payment_decimal <= 0:
+        raise Exception('Asset quantity and EVR payment must be greater than zero.')
+
+    seller_inputs, selected_asset_quantity, seller_input_satoshis = _select_asset_inputs(
+        address=seller_address,
+        asset_name=asset_name,
+        required_quantity=asset_quantity_decimal,
+        locktime=locktime,
+        replaceable=replaceable,
+    )
+    asset_change_quantity = selected_asset_quantity - asset_quantity_decimal
+    payment_satoshis = _to_satoshis(payment_decimal)
+    provisional_fee_satoshis = _resolve_fee_satoshis(
+        explicit_fee_evr=fee_evr,
+        input_count=len(seller_inputs) + 1,
+        output_count=4 if asset_change_quantity > 0 else 3,
+        conf_target=fee_conf_target,
+        estimate_mode=fee_estimate_mode,
+    )
+
+    final_fee_satoshis = provisional_fee_satoshis
+    buyer_inputs = []
+    buyer_input_satoshis = 0
+    outputs = []
+
+    for _ in range(4):
+        asset_output_count = 2 if asset_change_quantity > 0 else 1
+        asset_output_satoshis = DUST_THRESHOLD_SATS * asset_output_count
+        buyer_required_satoshis = (
+            payment_satoshis
+            + final_fee_satoshis
+            + max(0, asset_output_satoshis - seller_input_satoshis)
+        )
+        buyer_inputs, buyer_input_satoshis = _select_evr_inputs(
+            address=buyer_address,
+            required_satoshis=buyer_required_satoshis,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
+
+        seller_native_change = max(0, seller_input_satoshis - asset_output_satoshis)
+        buyer_native_change = buyer_input_satoshis - buyer_required_satoshis
+
+        outputs = [
+            {
+                buyer_address: {
+                    'transfer': {
+                        str(asset_name): float(asset_quantity_decimal),
+                    }
+                }
+            },
+        ]
+        if asset_change_quantity > 0:
+            outputs.append(
+                {
+                    seller_address: {
+                        'transfer': {
+                            str(asset_name): float(asset_change_quantity),
+                        }
+                    }
+                }
+            )
+
+        seller_payout_satoshis = payment_satoshis + seller_native_change
+        outputs.append({seller_address: _evr_output_value(_satoshis_to_evr(seller_payout_satoshis))})
+
+        if buyer_native_change >= DUST_THRESHOLD_SATS:
+            outputs.append({buyer_address: _evr_output_value(_satoshis_to_evr(buyer_native_change))})
+
+        next_fee_satoshis = _resolve_fee_satoshis(
+            explicit_fee_evr=fee_evr,
+            input_count=len(seller_inputs) + len(buyer_inputs),
+            output_count=len(outputs),
+            conf_target=fee_conf_target,
+            estimate_mode=fee_estimate_mode,
+        )
+        if next_fee_satoshis == final_fee_satoshis:
+            break
+        final_fee_satoshis = next_fee_satoshis
+
+    raw_tx = create_raw_transaction(
+        inputs=[*seller_inputs, *buyer_inputs],
+        outputs=outputs,
+        locktime=locktime,
+        replaceable=replaceable,
+    )
+
+    return {
+        'raw_tx': raw_tx,
+        'inputs': [*seller_inputs, *buyer_inputs],
+        'outputs': outputs,
+        'asset_change_quantity': asset_change_quantity,
+        'fee_evr': _satoshis_to_evr(final_fee_satoshis),
+    }
+
+
+def create_and_send_atomic_asset_evr_swap_transaction(
+    seller_address,
+    buyer_address,
+    asset_name,
+    asset_quantity,
+    payment_evr,
+    fee_evr=None,
+    fee_conf_target=DEFAULT_FEE_CONF_TARGET,
+    fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
+    locktime=0,
+    replaceable=False,
+    wif_keys=None,
+):
+    """Create, sign with both parties, and broadcast an atomic asset-for-EVR swap."""
+    tx_data = create_raw_atomic_asset_evr_swap_transaction(
+        seller_address=seller_address,
+        buyer_address=buyer_address,
+        asset_name=asset_name,
+        asset_quantity=asset_quantity,
+        payment_evr=payment_evr,
         fee_evr=fee_evr,
         fee_conf_target=fee_conf_target,
         fee_estimate_mode=fee_estimate_mode,

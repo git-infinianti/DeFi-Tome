@@ -51,6 +51,7 @@ def api_info(request):
             'endpoints': {
                 'contracts': '/api/v1/contracts/',
                 'assets': '/api/v1/assets/',
+                'nfts': '/api/v1/nfts/',
                 'blockchain': '/api/v1/blockchain/',
                 'messages': '/api/v1/messages/',
             }
@@ -441,6 +442,55 @@ def asset_issue(request):
         return JsonResponse({
             'success': False,
             'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@api_key_required
+@require_http_methods(["POST"])
+def nft_mint(request):
+    """Mint an NFT by issuing an Evrmore unique asset."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON',
+        }, status=400)
+
+    root_name = str(data.get('root_name', '')).strip().upper()
+    asset_tag = str(data.get('asset_tag', '')).strip()
+    ipfs_hash = str(data.get('ipfs_hash', '')).strip()
+
+    if not root_name or not asset_tag:
+        return JsonResponse({
+            'success': False,
+            'error': 'root_name and asset_tag are required',
+        }, status=400)
+
+    if '#' in root_name or root_name.endswith('!') or '#' in asset_tag or any(char.isspace() for char in asset_tag):
+        return JsonResponse({
+            'success': False,
+            'error': 'root_name must be an asset root and asset_tag must not contain # or whitespace',
+        }, status=400)
+
+    try:
+        result = evrmore_rpc.issue_unique_asset(
+            root_name=root_name,
+            asset_tags=[asset_tag],
+            ipfs_hashes=[ipfs_hash] if ipfs_hash else None,
+            to_address=str(data.get('to_address', '')).strip(),
+            change_address=str(data.get('change_address', '')).strip(),
+        )
+        return JsonResponse({
+            'success': True,
+            'nft_asset_name': f'{root_name}#{asset_tag}',
+            'tx_hash': result,
+        })
+    except Exception as exc:
+        return JsonResponse({
+            'success': False,
+            'error': str(exc),
         }, status=500)
 
 

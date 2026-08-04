@@ -217,7 +217,7 @@
             <nav>
                 <a href="{% url 'testnet_home' %}">DeFi</a>
                 <a href="{% url 'explorer' %}">Explorer</a>
-                <a href="{% url 'listings' %}">Listings</a>
+                <a href="{% url 'listings' %}">Atomic Swaps</a>
                 <a href="{% url 'portfolio' %}">Portfolio</a>
                 <a href="{% url 'api_docs' %}">Docs</a>
                 <a href="{% url 'settings' %}">Settings</a>
@@ -245,8 +245,8 @@
                 </a>
                 <a href="{% url 'listings' %}" class="feature-card-link">
                     <div class="feature-card">
-                        <h3>🔍 Listings</h3>
-                        <p>Trade digital assets and NFTs</p>
+                        <h3>Atomic Swaps</h3>
+                        <p>Exchange Evrmore assets and NFTs for EVR</p>
                     </div>
                 </a>
                 <a href="{% url 'api_docs' %}" class="feature-card-link">
@@ -258,20 +258,20 @@
             </section>
             
             <section class="news-section">
-                <h2>Recent Listings</h2>
+                <h2>Recent Atomic Swaps</h2>
                 {% if listings %}
                     {% for listing in listings %}
                     <div class="news-item">
                         <h4>{{ listing.item.title }}</h4>
                         <div class="date">{{ listing.listing_date|date:"M d, Y" }} by {{ listing.seller.username }}</div>
                         <p>{{ listing.item.description|truncatewords:20 }}</p>
-                        <p class="price-info">Price: {{ listing.price }} | Available: {{ listing.quantity_available }}</p>
+                        <p class="price-info">EVR per unit: {{ listing.price }} | Offered: {{ listing.quantity_available }}</p>
                     </div>
                     {% endfor %}
                 {% else %}
                     <div class="news-item">
-                        <h4>No Listings Yet</h4>
-                        <p>Be the first to create a marketplace listing!</p>
+                        <h4>No Atomic Swaps Yet</h4>
+                        <p>Be the first to publish an on-chain asset offer.</p>
                     </div>
                 {% endif %}
             </section>

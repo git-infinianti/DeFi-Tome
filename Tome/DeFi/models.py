@@ -188,9 +188,10 @@ class SwapTransaction(models.Model):
         return f"SwapTransaction({self.from_amount} {self.from_token} -> {self.to_amount} {self.to_token})"
 
 class SwapOffer(models.Model):
-    """P2P swap offer between two users"""
+    """Atomic asset-for-EVR swap offer between two users."""
     STATUS_CHOICES = [
         ('pending', 'Pending'),
+        ('settling', 'Settling'),
         ('accepted', 'Accepted'),
         ('completed', 'Completed'),
         ('rejected', 'Rejected'),
@@ -203,16 +204,19 @@ class SwapOffer(models.Model):
     listing = models.ForeignKey('Listings.Listing', on_delete=models.CASCADE, related_name='swap_offers', null=True, blank=True)
     
     # What initiator offers
-    offer_token = models.CharField(max_length=10)
+    offer_token = models.CharField(max_length=255)
     offer_amount = models.DecimalField(max_digits=20, decimal_places=8)
     
     # What initiator wants
-    request_token = models.CharField(max_length=10)
+    request_token = models.CharField(max_length=255)
     request_amount = models.DecimalField(max_digits=20, decimal_places=8)
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     escrow_id = models.CharField(max_length=100, blank=True)
     expires_at = models.DateTimeField()
+    settlement_txid = models.CharField(max_length=100, blank=True)
+    settlement_error = models.TextField(blank=True)
+    settlement_started_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -242,9 +246,9 @@ class P2PSwapTransaction(models.Model):
     initiator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='p2p_swaps_as_initiator')
     counterparty = models.ForeignKey(User, on_delete=models.CASCADE, related_name='p2p_swaps_as_counterparty')
     
-    initiator_token = models.CharField(max_length=10)
+    initiator_token = models.CharField(max_length=255)
     initiator_amount = models.DecimalField(max_digits=20, decimal_places=8)
-    counterparty_token = models.CharField(max_length=10)
+    counterparty_token = models.CharField(max_length=255)
     counterparty_amount = models.DecimalField(max_digits=20, decimal_places=8)
     
     tx_hash = models.CharField(max_length=100, blank=True)

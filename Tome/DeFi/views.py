@@ -9,13 +9,46 @@ from decimal import Decimal, InvalidOperation
 import uuid
 from .models import (
     TestnetConfig, LiquidityPool, LiquidityPosition, SwapTransaction, 
-    SwapOffer, SwapEscrow, P2PSwapTransaction, PriceFeedSource, 
+    SwapOffer, P2PSwapTransaction, PriceFeedSource,
     PriceFeedData, PriceFeedAggregation, CollateralAsset, InterestRateConfig,
     LendingPool, Deposit, Loan, LoanRepayment, Liquidation
+)
+from Wallet.models import WalletAddress
+from Wallet.wallet import Wallet
+from Wallet.rpc import (
+    create_raw_atomic_asset_evr_swap_transaction,
+    sign_and_broadcast_raw_transaction,
 )
 import statistics
 
 # Create your views here.
+
+
+def _get_user_primary_address(user):
+    """Return the first external wallet address for a user."""
+    user_wallet = getattr(user, 'user_wallet', None)
+    if not user_wallet:
+        return None
+
+    address_record = WalletAddress.objects.filter(
+        wallet=user_wallet,
+        is_change=False,
+    ).order_by('account', 'index').first()
+    if address_record:
+        return address_record.address
+
+    try:
+        return Wallet(user_wallet.entropy, user_wallet.passphrase).get_wallet().address()
+    except Exception:
+        return None
+
+
+def _derive_user_wif_for_address(user, address):
+    """Derive the WIF needed to sign a transaction from a user's wallet."""
+    user_wallet = getattr(user, 'user_wallet', None)
+    if not user_wallet:
+        raise Exception('No wallet found for user.')
+    return Wallet(user_wallet.entropy, user_wallet.passphrase).get_wif_for_address(address)
 
 def testnet_home(request):
     """Display testnet home page with overview"""
@@ -286,79 +319,124 @@ def transactions(request):
 @login_required
 def create_swap_offer(request, listing_id=None):
     """
-    DEPRECATED: Redirects to create_listing which now handles both listing and swap offer creation.
+    DEPRECATED: Redirects to the unified atomic swap creation flow.
     This function is kept for backward compatibility with existing URLs and templates.
     """
-    messages.info(request, 'Swap offers are now created through the unified listing interface.')
+    messages.info(request, 'Atomic swaps are now created through the unified Atomic Swaps interface.')
     return redirect('create_listing')
 
 @login_required
 def accept_swap_offer(request, offer_id):
-    """Accept a P2P swap offer"""
+    """Accept and settle an atomic asset-for-EVR swap offer."""
     swap_offer = get_object_or_404(SwapOffer, id=offer_id)
-    
-    # Validate offer can be accepted
-    if swap_offer.status != 'pending':
-        messages.error(request, 'This swap offer is no longer available.')
-        return redirect('available_swap_offers')
-    
-    if swap_offer.expires_at < timezone.now():
-        swap_offer.status = 'expired'
-        swap_offer.save()
-        messages.error(request, 'This swap offer has expired.')
-        return redirect('available_swap_offers')
-    
-    if swap_offer.counterparty and swap_offer.counterparty != request.user:
-        messages.error(request, 'This swap offer is not available to you.')
-        return redirect('available_swap_offers')
-    
-    if swap_offer.initiator == request.user:
-        messages.error(request, 'You cannot accept your own swap offer.')
-        return redirect('available_swap_offers')
-    
+
     if request.method == 'POST':
+        with transaction.atomic():
+            swap_offer = SwapOffer.objects.select_for_update().select_related('initiator').get(id=offer_id)
+
+            if swap_offer.status != 'pending':
+                messages.error(request, 'This atomic swap is no longer available.')
+                return redirect('available_swap_offers')
+
+            if swap_offer.expires_at < timezone.now():
+                swap_offer.status = 'expired'
+                swap_offer.save(update_fields=['status', 'updated_at'])
+                messages.error(request, 'This atomic swap has expired.')
+                return redirect('available_swap_offers')
+
+            if swap_offer.counterparty and swap_offer.counterparty != request.user:
+                messages.error(request, 'This atomic swap is not available to you.')
+                return redirect('available_swap_offers')
+
+            if swap_offer.initiator == request.user:
+                messages.error(request, 'You cannot accept your own atomic swap.')
+                return redirect('available_swap_offers')
+
+            if swap_offer.request_token != 'EVR':
+                messages.error(request, 'Atomic settlement currently supports asset-for-EVR swaps only.')
+                return redirect('available_swap_offers')
+
+            original_counterparty_id = swap_offer.counterparty_id
+            swap_offer.counterparty = request.user
+            swap_offer.status = 'settling'
+            swap_offer.settlement_error = ''
+            swap_offer.settlement_started_at = timezone.now()
+            swap_offer.save(update_fields=[
+                'counterparty',
+                'status',
+                'settlement_error',
+                'settlement_started_at',
+                'updated_at',
+            ])
+
         try:
+            seller_address = _get_user_primary_address(swap_offer.initiator)
+            buyer_address = _get_user_primary_address(request.user)
+            if not seller_address or not buyer_address:
+                raise Exception('Both parties need a wallet address before settlement can begin.')
+
+            seller_wif = _derive_user_wif_for_address(swap_offer.initiator, seller_address)
+            buyer_wif = _derive_user_wif_for_address(request.user, buyer_address)
+            tx_data = create_raw_atomic_asset_evr_swap_transaction(
+                seller_address=seller_address,
+                buyer_address=buyer_address,
+                asset_name=swap_offer.offer_token,
+                asset_quantity=swap_offer.offer_amount,
+                payment_evr=swap_offer.request_amount,
+            )
+        except Exception as exc:
             with transaction.atomic():
-                # Update swap offer
-                swap_offer.counterparty = request.user
-                swap_offer.status = 'accepted'
-                swap_offer.save()
-                
-                # Create escrow
-                SwapEscrow.objects.create(
-                    swap_offer=swap_offer,
-                    initiator_locked=True,
-                    counterparty_locked=True,
-                    initiator_amount=swap_offer.offer_amount,
-                    counterparty_amount=swap_offer.request_amount
-                )
-                
-                # Execute the swap
-                swap_offer.status = 'completed'
-                swap_offer.save()
-                
-                # Create transaction record
-                P2PSwapTransaction.objects.create(
-                    swap_offer=swap_offer,
-                    initiator=swap_offer.initiator,
-                    counterparty=request.user,
-                    initiator_token=swap_offer.offer_token,
-                    initiator_amount=swap_offer.offer_amount,
-                    counterparty_token=swap_offer.request_token,
-                    counterparty_amount=swap_offer.request_amount,
-                    tx_hash=f'p2p-{uuid.uuid4()}'
-                )
-                
-                # Update escrow
-                escrow = swap_offer.escrow
-                escrow.released_at = timezone.now()
-                escrow.save()
-                
-                messages.success(request, f'Swap completed! You exchanged {swap_offer.request_amount} {swap_offer.request_token} for {swap_offer.offer_amount} {swap_offer.offer_token}.')
-                return redirect('my_swap_history')
-        except Exception as e:
-            messages.error(request, f'Error executing swap: {str(e)}')
+                failed_offer = SwapOffer.objects.select_for_update().get(id=offer_id)
+                if failed_offer.status == 'settling':
+                    failed_offer.status = 'pending'
+                    failed_offer.counterparty_id = original_counterparty_id
+                    failed_offer.settlement_error = str(exc)
+                    failed_offer.save(update_fields=['status', 'counterparty', 'settlement_error', 'updated_at'])
+            messages.error(request, f'Unable to build the atomic swap transaction: {str(exc)}')
             return redirect('available_swap_offers')
+
+        try:
+            txid = sign_and_broadcast_raw_transaction(
+                tx_data['raw_tx'],
+                wif_keys=[seller_wif, buyer_wif],
+            )
+        except Exception as exc:
+            with transaction.atomic():
+                failed_offer = SwapOffer.objects.select_for_update().get(id=offer_id)
+                if failed_offer.status == 'settling':
+                    failed_offer.settlement_error = (
+                        f'Broadcast outcome requires reconciliation before retrying: {str(exc)}'
+                    )
+                    failed_offer.save(update_fields=['settlement_error', 'updated_at'])
+            messages.error(request, 'The atomic swap broadcast needs reconciliation before it can be retried.')
+            return redirect('available_swap_offers')
+
+        with transaction.atomic():
+            settled_offer = SwapOffer.objects.select_for_update().select_related('initiator').get(id=offer_id)
+            if settled_offer.status != 'settling' or settled_offer.counterparty != request.user:
+                messages.error(request, 'Atomic swap settlement state changed unexpectedly.')
+                return redirect('available_swap_offers')
+
+            settled_offer.status = 'completed'
+            settled_offer.settlement_txid = txid
+            settled_offer.settlement_error = ''
+            settled_offer.save(update_fields=['status', 'settlement_txid', 'settlement_error', 'updated_at'])
+            P2PSwapTransaction.objects.create(
+                swap_offer=settled_offer,
+                initiator=settled_offer.initiator,
+                counterparty=request.user,
+                initiator_token=settled_offer.offer_token,
+                initiator_amount=settled_offer.offer_amount,
+                counterparty_token=settled_offer.request_token,
+                counterparty_amount=settled_offer.request_amount,
+                tx_hash=txid,
+            )
+
+        messages.success(
+            request,
+            f'Atomic swap broadcast successfully. Transaction ID: {txid}',
+        )
+        return redirect('my_swap_history')
     
     context = {
         'swap_offer': swap_offer,
@@ -367,17 +445,17 @@ def accept_swap_offer(request, offer_id):
 
 @login_required
 def cancel_swap_offer(request, offer_id):
-    """Cancel a P2P swap offer"""
+    """Cancel a pending atomic swap."""
     swap_offer = get_object_or_404(SwapOffer, id=offer_id, initiator=request.user)
     
     if swap_offer.status != 'pending':
-        messages.error(request, 'Only pending offers can be cancelled.')
+        messages.error(request, 'Only pending atomic swaps can be cancelled.')
         return redirect('my_swap_offers')
     
     if request.method == 'POST':
         swap_offer.status = 'cancelled'
         swap_offer.save()
-        messages.success(request, 'Swap offer cancelled successfully.')
+        messages.success(request, 'Atomic swap cancelled successfully.')
         return redirect('my_swap_offers')
     
     context = {
@@ -387,7 +465,7 @@ def cancel_swap_offer(request, offer_id):
 
 @login_required
 def my_swap_offers(request):
-    """Display user's created swap offers"""
+    """Display a user's created atomic swaps."""
     offers = SwapOffer.objects.filter(initiator=request.user).order_by('-created_at')
     
     context = {
@@ -397,8 +475,8 @@ def my_swap_offers(request):
 
 @login_required
 def available_swap_offers(request):
-    """Display available swap offers for the user"""
-    # Show offers that are:
+    """Display atomic swaps available to the user."""
+    # Show atomic swaps that are:
     # 1. Pending
     # 2. Not expired
     # 3. Either no counterparty or counterparty is current user
@@ -418,7 +496,7 @@ def available_swap_offers(request):
 
 @login_required
 def my_swap_history(request):
-    """Display user's completed P2P swap history"""
+    """Display a user's completed atomic swap history."""
     swaps = P2PSwapTransaction.objects.filter(
         Q(initiator=request.user) | Q(counterparty=request.user)
     ).order_by('-completed_at')

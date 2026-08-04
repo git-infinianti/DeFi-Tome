@@ -1,9 +1,66 @@
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
+from unittest.mock import patch
 import json
 
-from .models import SolidityContract, ContractInteraction, ContractAsset
+from .models import APIKey, SolidityContract, ContractInteraction, ContractAsset
+from .rpc import EvrmoreRPC
+
+
+class NFTMintEndpointTestCase(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='nft-owner', password='testpass123')
+        self.raw_api_key = 'nft-test-api-key'
+        APIKey.objects.create(
+            user=self.user,
+            name='NFT tests',
+            key_hash=APIKey.hash_key(self.raw_api_key),
+            key_prefix=self.raw_api_key[:8],
+        )
+
+    @patch('API.views.evrmore_rpc.issue_unique_asset', return_value='mint-transaction-id')
+    def test_mint_nft_issues_an_evrmore_unique_asset(self, mock_issue_unique_asset):
+        response = self.client.post(
+            reverse('nft_mint'),
+            data=json.dumps({
+                'root_name': 'COLLECTIBLE',
+                'asset_tag': '001',
+                'ipfs_hash': 'QmExample',
+            }),
+            content_type='application/json',
+            HTTP_X_API_KEY=self.raw_api_key,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['nft_asset_name'], 'COLLECTIBLE#001')
+        self.assertEqual(response.json()['tx_hash'], 'mint-transaction-id')
+        mock_issue_unique_asset.assert_called_once_with(
+            root_name='COLLECTIBLE',
+            asset_tags=['001'],
+            ipfs_hashes=['QmExample'],
+            to_address='',
+            change_address='',
+        )
+
+    @patch.object(EvrmoreRPC, 'issue_unique_asset', return_value='mint-transaction-id')
+    def test_nft_rpc_wrapper_uses_unique_asset_issuance(self, mock_issue_unique_asset):
+        rpc_client = EvrmoreRPC()
+
+        result = rpc_client.issue_nft_asset(
+            asset_name='COLLECTIBLE#001',
+            ipfs_hash='QmExample',
+        )
+
+        self.assertEqual(result, 'mint-transaction-id')
+        mock_issue_unique_asset.assert_called_once_with(
+            root_name='COLLECTIBLE',
+            asset_tags=['001'],
+            ipfs_hashes=['QmExample'],
+            to_address='',
+            change_address='',
+        )
 
 
 class APIInfoTestCase(TestCase):

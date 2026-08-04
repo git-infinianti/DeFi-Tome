@@ -1,5 +1,10 @@
 # NFT Frontend Implementation Summary
 
+> **Superseded implementation note (2026-08-03):** The current NFT flow uses an
+> on-chain Evrmore unique asset named `ROOT#TAG`. The Atomic Swaps form selects
+> an existing NFT from the wallet; minting happens through `POST /api/v1/nfts/mint/`.
+> The checkbox and local UUID flow described below are retained only as history.
+
 ## Overview
 The frontend has been fully implemented to support NFT (Non-Fungible Token) listing creation and display. Users can now create 1-of-1 unique digital assets with optional IPFS image storage.
 

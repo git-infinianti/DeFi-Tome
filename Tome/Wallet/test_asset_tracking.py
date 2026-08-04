@@ -19,10 +19,10 @@ class AssetTypeClassificationTest(TestCase):
         result = classify_asset_type('PARENT/CHILD')
         self.assertEqual(result, TrackedAsset.ASSET_TYPE_SUB)
     
-    def test_unique_asset(self):
-        """Test unique asset classification"""
+    def test_unique_asset_is_classified_as_nft(self):
+        """Test Evrmore unique assets are classified as NFTs."""
         result = classify_asset_type('MYTOKEN#123')
-        self.assertEqual(result, TrackedAsset.ASSET_TYPE_UNIQUE)
+        self.assertEqual(result, TrackedAsset.ASSET_TYPE_NFT)
     
     def test_messaging_channel(self):
         """Test messaging channel classification"""
