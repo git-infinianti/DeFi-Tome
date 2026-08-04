@@ -3,6 +3,7 @@
 .json
 .jsonl
 .ipynb
+*.db
 db.sqlite3
 evrmore_auth.sqlite3
 migrations/
