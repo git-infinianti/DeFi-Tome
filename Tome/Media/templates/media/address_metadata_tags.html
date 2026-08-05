@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Address Profiles | DeFi Tome</title>
+    <style>
+        :root, .theme-dark, .theme- {
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: rgba(148, 163, 184, 0.2);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --card-bg-hover: rgba(59, 130, 246, 0.05);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #60a5fa;
+            --accent-purple: #a78bfa;
+            --success-text: #4ade80;
+            --error-text: #fca5a5;
+            --warning-text: #fcd34d;
+            --input-bg: rgba(15, 23, 42, 0.5);
+            --input-focus-bg: rgba(15, 23, 42, 0.7);
+        }
+
+        .theme-light {
+            --bg-gradient-start: #f8fafc;
+            --bg-gradient-end: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --border-color: rgba(15, 23, 42, 0.2);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-bg-hover: rgba(59, 130, 246, 0.05);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #2563eb;
+            --accent-purple: #9333ea;
+            --success-text: #16a34a;
+            --error-text: #dc2626;
+            --warning-text: #d97706;
+            --input-bg: rgba(255, 255, 255, 0.7);
+            --input-focus-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .shell {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        header > div:first-child {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .brand {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .back-link,
+        nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .back-link:hover,
+        nav a:hover {
+            color: var(--accent-primary);
+        }
+
+        nav {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2rem;
+        }
+
+        main {
+            padding-bottom: 2rem;
+        }
+
+        .page-heading {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--accent-light), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: var(--accent-light);
+            font-size: 1.25rem;
+        }
+
+        .subtitle,
+        .count {
+            color: var(--text-muted);
+        }
+
+        .page-heading .button {
+            margin-top: 1.25rem;
+        }
+
+        .button,
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+
+        .button:hover,
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .button.secondary,
+        button.secondary {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-light);
+            border: 1px solid var(--accent-primary);
+        }
+
+        .button.secondary:hover,
+        button.secondary:hover {
+            background: rgba(59, 130, 246, 0.2);
+            box-shadow: none;
+        }
+
+        .messages {
+            margin-bottom: 2rem;
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent-primary);
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--text-secondary);
+        }
+
+        .message.success {
+            border-color: var(--success-text);
+            color: var(--success-text);
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .message.error {
+            border-color: var(--error-text);
+            color: var(--error-text);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .message.warning {
+            border-color: var(--warning-text);
+            color: var(--warning-text);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .lookup {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 1rem;
+            padding: 1.5rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+        }
+
+        .lookup label {
+            display: block;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            min-height: 42px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            background: var(--input-bg);
+            font: inherit;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            background: var(--input-focus-bg);
+        }
+
+        .section {
+            padding-top: 2.5rem;
+        }
+
+        .section-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--card-bg);
+        }
+
+        table {
+            width: 100%;
+            min-width: 820px;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            padding: 1rem;
+            vertical-align: top;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        th {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .mono {
+            max-width: 240px;
+            overflow-wrap: anywhere;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .badge.broadcast,
+        .badge.valid {
+            color: var(--success-text);
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .badge.pending {
+            color: var(--warning-text);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .badge.failed,
+        .badge.broadcast_unknown,
+        .badge.invalid {
+            color: var(--error-text);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .table-action {
+            margin: 0;
+        }
+
+        .table-action button {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .empty {
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            background: var(--card-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+        }
+
+        .result-error {
+            max-width: 300px;
+            margin-top: 0.5rem;
+            color: var(--error-text);
+            overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 768px) {
+            .shell {
+                padding: 1.25rem;
+            }
+
+            header,
+            header > div:first-child {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            nav {
+                gap: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .lookup {
+                grid-template-columns: 1fr;
+            }
+
+            .lookup button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="theme-{{ user_theme }}">
+    <div class="shell">
+        <header>
+            <div>
+                <a class="brand" href="{% url 'portfolio' %}">DeFi Tome</a>
+                <div><a class="back-link" href="{% url 'media_list' %}">Back to Media</a></div>
+            </div>
+            <nav aria-label="Primary navigation">
+                <a href="{% url 'home' %}">Home</a>
+                <a href="{% url 'portfolio' %}">Portfolio</a>
+                <a href="{% url 'settings' %}">Settings</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="page-heading">
+                <div>
+                    <h1>Address Profiles</h1>
+                    <p class="subtitle">On-chain metadata and verification records</p>
+                </div>
+                <a class="button" href="{% url 'address_metadata_tag_create' %}">Create profile</a>
+            </div>
+
+            {% if messages %}
+            <div class="messages" aria-live="polite">
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <form class="lookup" method="get" action="{% url 'address_metadata_tag_lookup' %}">
+                <div>
+                    <label for="lookup-address">Public address</label>
+                    <input id="lookup-address" name="address" value="{{ lookup_address }}" required>
+                </div>
+                <button type="submit">Lookup profiles</button>
+            </form>
+
+            {% if lookup_results is not None %}
+            <section class="section" aria-labelledby="lookup-heading">
+                <div class="section-heading">
+                    <h2 id="lookup-heading">Profile Lookup Results</h2>
+                    <span class="count">{{ lookup_results|length }} profile{{ lookup_results|length|pluralize }}</span>
+                </div>
+                {% if lookup_results %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Type</th>
+                                <th>Metadata CID</th>
+                                <th>Verification</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in lookup_results %}
+                            <tr>
+                                <td class="mono">{{ result.asset_name }}</td>
+                                <td>{{ result.tag_type|default:"Unknown" }}</td>
+                                <td class="mono">{{ result.ipfs_cid|default:"Unavailable" }}</td>
+                                <td>
+                                    {% if result.is_valid %}
+                                    <span class="badge valid">Valid</span>
+                                    {% else %}
+                                    <span class="badge invalid">Needs review</span>
+                                    {% endif %}
+                                    {% if result.error %}<div class="result-error">{{ result.error }}</div>{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="empty">No address profiles were found for this address.</p>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            <section class="section" aria-labelledby="issued-heading">
+                <div class="section-heading">
+                    <h2 id="issued-heading">My Address Profiles</h2>
+                    <span class="count">{{ tags|length }} profile{{ tags|length|pluralize }}</span>
+                </div>
+                {% if tags %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Tagged address</th>
+                                <th>CID</th>
+                                <th>Broadcast</th>
+                                <th>Signature</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tag in tags %}
+                            <tr>
+                                <td class="mono">{{ tag.asset_name }}</td>
+                                <td class="mono">{{ tag.target_address }}</td>
+                                <td class="mono">{{ tag.ipfs_cid|default:"Pending" }}</td>
+                                <td>
+                                    <span class="badge {{ tag.status }}">{{ tag.get_status_display }}</span>
+                                    {% if tag.transaction_id %}<div class="mono">{{ tag.transaction_id }}</div>{% endif %}
+                                </td>
+                                <td>
+                                    {% if tag.signature_verified is True %}
+                                    <span class="badge valid">Verified</span>
+                                    {% elif tag.signature_verified is False %}
+                                    <span class="badge invalid">Invalid</span>
+                                    {% else %}
+                                    <span class="badge pending">Unchecked</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if tag.ipfs_cid %}
+                                    <form class="table-action" method="post" action="{% url 'address_metadata_tag_verify' tag.pk %}">
+                                        {% csrf_token %}
+                                        <button class="secondary" type="submit">Verify</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="empty">No address profiles have been created from this account.</p>
+                {% endif %}
+            </section>
+        </main>
+    </div>
+</body>
+</html>

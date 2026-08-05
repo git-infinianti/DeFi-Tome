@@ -18,9 +18,22 @@ than adding standalone Markdown files at the repository root.
 - [NFT frontend implementation summary](NFT_FRONTEND_IMPLEMENTATION.md)
 - [NFT quick reference](NFT_QUICK_REFERENCE.md)
 
+### Protocol Integrations
+
+- [RIP-0010 address metadata tags](RIP-0010_ADDRESS_METADATA_TAGS.md)
+
 ### RPC Operations
 
 - [Evrmore command cheatsheet](commands-cheatsheet.md)
 
 The command cheatsheet is machine-validated by
 `scripts/verify_rpc_cheatsheet.py`; keep its command-list format intact.
+
+## Frontend Consistency
+
+When adding a screen to an existing app, begin with the closest existing
+template in that app and preserve its theme class, CSS variables, typography,
+header/navigation structure, cards, and button states. Do not introduce a
+one-off visual system for a feature unless the change is an intentional,
+documented product-wide design decision. Check the new screen in both light and
+dark themes before considering it complete.

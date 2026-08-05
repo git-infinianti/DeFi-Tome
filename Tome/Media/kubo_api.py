@@ -115,6 +115,48 @@ class KuboAPIUploader:
 
         return KuboUploadResult(name=name, cid=cid, size=size)
 
+    def download_bytes(self, cid: str, *, max_bytes: int = 1_048_576) -> bytes:
+        """Retrieve bounded content from the configured Kubo node's `/api/v0/cat`."""
+        normalized_cid = self._normalize_cid(cid)
+        if max_bytes <= 0:
+            raise ValueError("max_bytes must be greater than zero.")
+
+        content = bytearray()
+        with httpx.Client(timeout=self.timeout) as client:
+            with client.stream(
+                "POST",
+                f"{self.api_base_url}cat",
+                params={"arg": normalized_cid},
+            ) as response:
+                response.raise_for_status()
+                for chunk in response.iter_bytes():
+                    content.extend(chunk)
+                    if len(content) > max_bytes:
+                        raise ValueError(f"Kubo content exceeds the {max_bytes}-byte limit.")
+
+        return bytes(content)
+
+    def download_json(self, cid: str, *, max_bytes: int = 1_048_576) -> dict:
+        """Retrieve a JSON object from Kubo, rejecting non-object JSON payloads."""
+        content = self.download_bytes(cid, max_bytes=max_bytes)
+        try:
+            payload = json.loads(content.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Kubo content is not valid UTF-8 JSON.") from exc
+
+        if not isinstance(payload, dict):
+            raise ValueError("Kubo metadata must be a JSON object.")
+        return payload
+
+    @staticmethod
+    def _normalize_cid(cid: str) -> str:
+        normalized = str(cid or "").strip()
+        if not normalized:
+            raise ValueError("An IPFS CID is required.")
+        if len(normalized) > 255 or any(character.isspace() for character in normalized):
+            raise ValueError("IPFS CIDs must be non-whitespace strings up to 255 characters.")
+        return normalized
+
     @staticmethod
     def _parse_add_response(response_text: str) -> dict:
         """Parse Kubo newline-delimited JSON output from `/api/v0/add`."""

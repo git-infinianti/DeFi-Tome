@@ -1048,6 +1048,7 @@ def create_and_send_issue_unique_transaction(
     fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
+    wif_keys=None,
 ):
     if not asset_tags:
         raise Exception('asset_tags must contain at least one unique tag.')
@@ -1087,6 +1088,7 @@ def create_and_send_issue_unique_transaction(
         fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
+        wif_keys=wif_keys,
     )
 
 

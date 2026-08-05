@@ -37,3 +37,39 @@ class IPFSUpload(models.Model):
             return self.ipfs_hash
         except Exception:
             return None
+
+
+class AddressMetadataTag(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        BROADCAST = 'broadcast', 'Broadcast'
+        FAILED = 'failed', 'Failed before broadcast'
+        BROADCAST_UNKNOWN = 'broadcast_unknown', 'Broadcast outcome unknown'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='address_metadata_tags')
+    target_address = models.CharField(max_length=128)
+    funding_address = models.CharField(max_length=128, blank=True)
+    main_asset = models.CharField(max_length=10)
+    tag_type = models.CharField(max_length=3)
+    revision = models.CharField(max_length=7, blank=True)
+    asset_name = models.CharField(max_length=30, db_index=True)
+    metadata = models.JSONField(default=dict)
+    ipfs_cid = models.CharField(max_length=255, blank=True)
+    transaction_id = models.CharField(max_length=128, blank=True)
+    status = models.CharField(max_length=24, choices=Status.choices, default=Status.PENDING)
+    error_message = models.TextField(blank=True)
+    signature_verified = models.BooleanField(null=True)
+    last_verified_at = models.DateTimeField(blank=True, null=True)
+    verification_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        indexes = [
+            models.Index(fields=('user', '-created_at')),
+            models.Index(fields=('target_address', 'asset_name')),
+        ]
+
+    def __str__(self):
+        return f"AddressMetadataTag(asset_name={self.asset_name}, status={self.status})"
