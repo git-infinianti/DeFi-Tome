@@ -74,6 +74,23 @@
             display: flex;
             align-items: center;
         }
+
+        .env-chip {
+            margin-left: 1.5rem;
+            padding: 0.45rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+
+        .env-chip strong {
+            color: var(--accent-light);
+            font-weight: 700;
+        }
         
         nav a {
             color: var(--text-secondary);
@@ -207,6 +224,10 @@
             .hero h1 {
                 font-size: 2rem;
             }
+
+            .env-chip {
+                display: none;
+            }
         }
     </style>
 </head>
@@ -221,6 +242,7 @@
                 <a href="{% url 'portfolio' %}">Portfolio</a>
                 <a href="{% url 'api_docs' %}">Docs</a>
                 <a href="{% url 'settings' %}">Settings</a>
+                <span class="env-chip">Network: <strong>{{ user_network_display }}</strong> | RPC: <strong>{{ user_rpc_endpoint_display }}</strong></span>
             </nav>
         </header>
         

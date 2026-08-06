@@ -15,11 +15,22 @@ from Wallet.models import WalletAddress
 from Wallet.wallet import Wallet
 from Wallet.asset_tracking import sync_tracked_assets
 from Wallet.rpc import create_and_send_evr_transaction
+from Tome.rpc_client import get_current_network_mode
 import uuid
 
 from django.conf import settings
 MARKET_SYNC_ADDRESS = settings.MARKET_SYNC_ADDRESS
 MARKET_QUOTE_TOKEN = 'EVR'
+
+
+def _credit_user_evr_balance_for_active_network(user_wallet, amount):
+    credit_amount = Decimal(str(amount or 0))
+    if get_current_network_mode() == 'mainnet':
+        user_wallet.evr_liquidity_mainnet = (user_wallet.evr_liquidity_mainnet or Decimal('0')) + credit_amount
+        user_wallet.evr_liquidity = user_wallet.evr_liquidity_mainnet
+    else:
+        user_wallet.evr_liquidity_testnet = (user_wallet.evr_liquidity_testnet or Decimal('0')) + credit_amount
+    user_wallet.save()
 
 
 def _get_user_token_balance(user, token_symbol):
@@ -114,6 +125,7 @@ def _get_user_primary_address(user):
 
     address_record = WalletAddress.objects.filter(
         wallet=user_wallet,
+        network_mode=get_current_network_mode(),
         is_change=False
     ).order_by('account', 'index').first()
 
@@ -122,9 +134,26 @@ def _get_user_primary_address(user):
 
     # Fallback to deriving address from wallet entropy/passphrase
     try:
-        wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+        wallet_instance = Wallet(
+            user_wallet.entropy,
+            user_wallet.passphrase,
+            network_mode=get_current_network_mode(),
+        )
         wallet = wallet_instance.get_wallet()
-        return wallet.address()
+        address = wallet.address()
+
+        WalletAddress.objects.get_or_create(
+            wallet=user_wallet,
+            network_mode=get_current_network_mode(),
+            account=0,
+            index=0,
+            is_change=False,
+            defaults={
+                'address': address,
+                'wif': wallet.wif(),
+            },
+        )
+        return address
     except Exception:
         return None
 
@@ -135,7 +164,11 @@ def _derive_user_wif_for_address(user, address):
     if not user_wallet:
         raise Exception('No wallet found for user.')
 
-    wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+    wallet_instance = Wallet(
+        user_wallet.entropy,
+        user_wallet.passphrase,
+        network_mode=get_current_network_mode(),
+    )
     return wallet_instance.get_wif_for_address(address)
 
 
@@ -914,8 +947,7 @@ def place_market_order(request):
                         # Update seller's wallet balance
                         try:
                             seller_wallet = seller.user_wallet
-                            seller_wallet.evr_liquidity += evr_amount
-                            seller_wallet.save()
+                            _credit_user_evr_balance_for_active_network(seller_wallet, evr_amount)
                         except Exception as e:
                             print(f"Warning: Could not update seller wallet balance: {e}")
                     
@@ -1214,8 +1246,7 @@ def _match_order(order):
                 # Update seller's EVR balance
                 try:
                     seller_wallet = seller.user_wallet
-                    seller_wallet.evr_liquidity += evr_amount
-                    seller_wallet.save()
+                    _credit_user_evr_balance_for_active_network(seller_wallet, evr_amount)
                 except Exception as e:
                     print(f"Warning: Could not update seller wallet balance: {e}")
             

@@ -109,12 +109,13 @@ class Command(BaseCommand):
             
             WalletAddress.objects.get_or_create(
                 wallet=user_wallet,
+                network_mode='mainnet',
+                account=user_wallet.id or 0,
                 index=idx,
+                is_change=False,
                 defaults={
                     'address': address_str,
                     'wif': wallet_obj.wif(),
-                    'account': user_wallet.id or 0,
-                    'is_change': False,
                 }
             )
 

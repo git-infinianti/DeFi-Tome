@@ -118,6 +118,50 @@ def change_theme(request):
 
 @login_required
 @require_http_methods(["POST"])
+def change_network_mode(request):
+    """Change user's preferred Evrmore network mode."""
+    network_mode = request.POST.get('network_mode', 'testnet').strip().lower()
+
+    valid_modes = [choice[0] for choice in UserProfile.NETWORK_MODE_CHOICES]
+    if network_mode not in valid_modes:
+        messages.error(request, 'Invalid network mode selection.')
+        return redirect('settings')
+
+    user_profile, created = UserProfile.objects.get_or_create(user=request.user)
+    user_profile.network_mode = network_mode
+    user_profile.save()
+
+    messages.success(
+        request,
+        f"Network changed to {dict(UserProfile.NETWORK_MODE_CHOICES)[network_mode]}.",
+    )
+    return redirect('settings')
+
+
+@login_required
+@require_http_methods(["POST"])
+def change_rpc_endpoint_mode(request):
+    """Change user's preferred RPC endpoint mode."""
+    rpc_endpoint_mode = request.POST.get('rpc_endpoint_mode', 'public').strip().lower()
+
+    valid_modes = [choice[0] for choice in UserProfile.RPC_ENDPOINT_MODE_CHOICES]
+    if rpc_endpoint_mode not in valid_modes:
+        messages.error(request, 'Invalid RPC endpoint mode selection.')
+        return redirect('settings')
+
+    user_profile, created = UserProfile.objects.get_or_create(user=request.user)
+    user_profile.rpc_endpoint_mode = rpc_endpoint_mode
+    user_profile.save()
+
+    messages.success(
+        request,
+        f"RPC endpoint mode changed to {dict(UserProfile.RPC_ENDPOINT_MODE_CHOICES)[rpc_endpoint_mode]}.",
+    )
+    return redirect('settings')
+
+
+@login_required
+@require_http_methods(["POST"])
 def create_api_key(request):
     """Create a new API key for the user"""
     name = request.POST.get('name', '').strip()

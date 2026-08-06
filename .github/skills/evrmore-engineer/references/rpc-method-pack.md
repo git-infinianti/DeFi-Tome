@@ -7,12 +7,27 @@ Use these methods as a practical baseline for market-research and DEX architectu
 - getbestblockhash
 - getblockcount
 - getmempoolinfo
-- uptime
+- decodeblock
+- getblock
+- getblockcount
+- getblockhash
+- getblockheader
+- getchaintips
+- getchaintxstats
+- getdifficulty
+- getmempoolancestors
+- getmempooldescendants
+- getmempoolentry
+- getmempoolinfo
+- getrawmempool
+- getspentinfo
+- gettxout
+- gettxoutproof
 
 ## Asset Discovery And Validation
 - listassets
 - getassetdata
-- listmyassets
+- getburnaddresses
 - listassetbalancesbyaddress
 - listaddressesbyasset
 

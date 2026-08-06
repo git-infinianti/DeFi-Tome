@@ -1,9 +1,6 @@
-from decouple import config
-from evrmore_rpc import EvrmoreClient
 from collections import OrderedDict
 from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_UP
-
-RPC = EvrmoreClient(datadir=config('RPC_DATADIR', default='/tmp/evrmore'))
+from Tome.rpc_client import RPC
 
 SATOSHIS_PER_EVR = Decimal('100000000')
 DEFAULT_FEE_EVR = Decimal('0.0001')

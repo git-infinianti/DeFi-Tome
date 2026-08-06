@@ -63,6 +63,7 @@ class AddressMetadataTagServiceTests(TestCase):
 		)
 		WalletAddress.objects.create(
 			wallet=self.wallet,
+			network_mode='testnet',
 			address=self.address,
 			wif='owner-wif',
 			account=0,

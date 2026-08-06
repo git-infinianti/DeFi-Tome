@@ -66,7 +66,7 @@
 
 ## Backup Validation Procedure
 1. Run local probe:
-- /Users/chiefton/Documents/GitHub/DeFiTome/.venv/bin/python .github/skills/evrmore-market-research-rpc/scripts/local_rpc_backup_probe.py
+- /Users/chiefton/Documents/GitHub/DeFiTome/.venv/bin/python .github/skills/evrmore-engineer/scripts/local_rpc_backup_probe.py
 
 2. Run existing project RPC checklist validation:
 - /Users/chiefton/Documents/GitHub/DeFiTome/.venv/bin/python scripts/verify_rpc_cheatsheet.py

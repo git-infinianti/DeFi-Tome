@@ -1,4 +1,4 @@
-from .views import _sync_user_evr_balance
+from .views import _get_stored_network_balance
 from decimal import Decimal
 
 
@@ -10,10 +10,8 @@ def wallet_balance(request):
     if request.user.is_authenticated:
         user_wallet = getattr(request.user, 'user_wallet', None)
         if user_wallet:
-            # Sync balance from blockchain
-            balance = _sync_user_evr_balance(user_wallet)
-            # Convert from base unit (satoshis) to display unit by multiplying by 1e-8
-            display_balance = balance * Decimal('1e-8') if balance is not None else user_wallet.evr_liquidity * Decimal('1e-8')
+            # Read from stored network-specific balance to keep rendering side-effect free.
+            display_balance = _get_stored_network_balance(user_wallet) * Decimal('1e-8')
             return {
                 'user_wallet_balance': display_balance,
                 'has_wallet': True

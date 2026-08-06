@@ -19,6 +19,7 @@ from Wallet.rpc import (
     create_raw_atomic_asset_evr_swap_transaction,
     sign_and_broadcast_raw_transaction,
 )
+from Tome.rpc_client import get_current_network_mode
 import statistics
 
 # Create your views here.
@@ -32,13 +33,33 @@ def _get_user_primary_address(user):
 
     address_record = WalletAddress.objects.filter(
         wallet=user_wallet,
+        network_mode=get_current_network_mode(),
         is_change=False,
     ).order_by('account', 'index').first()
     if address_record:
         return address_record.address
 
     try:
-        return Wallet(user_wallet.entropy, user_wallet.passphrase).get_wallet().address()
+        wallet_instance = Wallet(
+            user_wallet.entropy,
+            user_wallet.passphrase,
+            network_mode=get_current_network_mode(),
+        )
+        wallet = wallet_instance.get_wallet()
+        address = wallet.address()
+
+        WalletAddress.objects.get_or_create(
+            wallet=user_wallet,
+            network_mode=get_current_network_mode(),
+            account=0,
+            index=0,
+            is_change=False,
+            defaults={
+                'address': address,
+                'wif': wallet.wif(),
+            },
+        )
+        return address
     except Exception:
         return None
 
@@ -48,7 +69,11 @@ def _derive_user_wif_for_address(user, address):
     user_wallet = getattr(user, 'user_wallet', None)
     if not user_wallet:
         raise Exception('No wallet found for user.')
-    return Wallet(user_wallet.entropy, user_wallet.passphrase).get_wif_for_address(address)
+    return Wallet(
+        user_wallet.entropy,
+        user_wallet.passphrase,
+        network_mode=get_current_network_mode(),
+    ).get_wif_for_address(address)
 
 def testnet_home(request):
     """Display testnet home page with overview"""

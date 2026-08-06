@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+from django.db import OperationalError
 from decimal import Decimal, InvalidOperation
 import hashlib
 import hmac
@@ -16,9 +17,47 @@ from .rpc import RPC, create_and_send_evr_transaction, create_and_send_asset_tra
 from hdwallet.entropies import BIP39Entropy
 from hdwallet.derivations import BIP44Derivation, CHANGES
 from hdwallet import cryptocurrencies
+from Tome.rpc_client import get_current_network_mode
 
 
 SAFETRADE_BASE_URL = 'https://safe.trade/api/v2'
+
+
+def _active_network_mode():
+    return get_current_network_mode()
+
+
+def _wallet_for_network(user_wallet):
+    return Wallet(
+        user_wallet.entropy,
+        user_wallet.passphrase,
+        network_mode=_active_network_mode(),
+    )
+
+
+def _get_stored_network_balance(user_wallet):
+    network_mode = _active_network_mode()
+    if network_mode == 'mainnet':
+        return user_wallet.evr_liquidity_mainnet or Decimal('0')
+    return user_wallet.evr_liquidity_testnet or Decimal('0')
+
+
+def _set_stored_network_balance(user_wallet, balance, updated_at=None):
+    network_mode = _active_network_mode()
+    balance_value = Decimal(str(balance or 0))
+    update_time = updated_at or timezone.now()
+
+    if network_mode == 'mainnet':
+        user_wallet.evr_liquidity_mainnet = balance_value
+        user_wallet.last_balance_update_mainnet = update_time
+        # Keep legacy field aligned for backward compatibility.
+        user_wallet.evr_liquidity = balance_value
+        user_wallet.last_balance_update = update_time
+    else:
+        user_wallet.evr_liquidity_testnet = balance_value
+        user_wallet.last_balance_update_testnet = update_time
+
+    user_wallet.save()
 
 
 def _sync_user_evr_balance(user_wallet):
@@ -37,10 +76,9 @@ def _sync_user_evr_balance(user_wallet):
         - Saves changes to database
     """
     try:
-        # Get wallet address
-        wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
-        wallet = wallet_instance.get_wallet()
-        address = wallet.address()
+        address = _get_user_primary_address(user_wallet.user)
+        if not address:
+            return None
         
         # Call getaddressbalance RPC command
         balance_data = RPC.getaddressbalance(address)
@@ -48,9 +86,7 @@ def _sync_user_evr_balance(user_wallet):
         # Extract balance from response: {"balance": 0, "received": 0}
         if isinstance(balance_data, dict) and 'balance' in balance_data:
             balance = Decimal(str(balance_data['balance']))
-            user_wallet.evr_liquidity = balance
-            user_wallet.last_balance_update = timezone.now()
-            user_wallet.save()
+            _set_stored_network_balance(user_wallet, balance, timezone.now())
             return balance
         else:
             print(f"Unexpected balance response format: {balance_data}")
@@ -69,6 +105,7 @@ def _get_user_primary_address(user):
 
     address_record = WalletAddress.objects.filter(
         wallet=user_wallet,
+        network_mode=_active_network_mode(),
         is_change=False
     ).order_by('account', 'index').first()
 
@@ -77,9 +114,23 @@ def _get_user_primary_address(user):
 
     # Fallback to deriving address from wallet entropy/passphrase
     try:
-        wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+        wallet_instance = _wallet_for_network(user_wallet)
         wallet = wallet_instance.get_wallet()
-        return wallet.address()
+        address = wallet.address()
+        wif = wallet.wif()
+
+        WalletAddress.objects.get_or_create(
+            wallet=user_wallet,
+            network_mode=_active_network_mode(),
+            account=0,
+            index=0,
+            is_change=False,
+            defaults={
+                'address': address,
+                'wif': wif,
+            },
+        )
+        return address
     except Exception:
         return None
 
@@ -90,14 +141,14 @@ def _derive_user_wif_for_address(user, address):
     if not user_wallet:
         raise Exception('No wallet found for user.')
 
-    wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+    wallet_instance = _wallet_for_network(user_wallet)
     try:
         return wallet_instance.get_wif_for_address(address)
     except ValueError as exc:
         raise Exception(f'Unable to derive signing key for address {address}: {str(exc)}')
 
 
-def _get_user_asset_balances(user):
+def _get_user_asset_balances(user, sync_tracking=True):
     """Return a dict of asset balances for the user's primary address."""
     address = _get_user_primary_address(user)
     if not address:
@@ -122,7 +173,13 @@ def _get_user_asset_balances(user):
         if amount_decimal > 0:
             asset_balances[symbol.upper()] = amount_decimal
 
-    sync_tracked_assets(user, asset_balances)
+    if sync_tracking:
+        try:
+            sync_tracked_assets(user, asset_balances)
+        except OperationalError as exc:
+            # Asset tracking sync is non-critical for request success.
+            if 'database is locked' not in str(exc).lower():
+                raise
     return asset_balances, None
 
 
@@ -324,7 +381,11 @@ def portfolio(request):
                 passphrase=passphrase
             )
             # Import the wallet into the RPC and store address details
-            wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
+            wallet_instance = Wallet(
+                user_wallet.entropy,
+                user_wallet.passphrase,
+                network_mode=_active_network_mode(),
+            )
             wallet = wallet_instance.get_wallet().from_derivation(
                 BIP44Derivation(
                     cryptocurrencies.Evrmore.COIN_TYPE,
@@ -338,11 +399,14 @@ def portfolio(request):
             RPC.importprivkey(wif, str(user_wallet.entropy), False)
             WalletAddress.objects.get_or_create(
                 wallet=user_wallet,
-                address=address,
-                wif=wif,
+                network_mode=_active_network_mode(),
                 account=0,
                 index=0,
                 is_change=False,
+                defaults={
+                    'address': address,
+                    'wif': wif,
+                },
             )
             messages.success(request, f'Wallet "{wallet_name}" created successfully!')
             return redirect('portfolio')
@@ -405,9 +469,7 @@ def recieve_funds(request):
         return redirect('portfolio')
     
     # Get wallet address
-    wallet_instance = Wallet(user_wallet.entropy, user_wallet.passphrase)
-    wallet = wallet_instance.get_wallet()
-    address = wallet.address()
+    address = _get_user_primary_address(request.user)
     
     context = {
         'address': address,
@@ -423,12 +485,13 @@ def send_funds(request):
         messages.error(request, 'No wallet found to send funds.')
         return redirect('portfolio')
     
-    asset_balances, _ = _get_user_asset_balances(request.user)
+    # Read-only fetch for send form rendering to avoid write contention.
+    asset_balances, _ = _get_user_asset_balances(request.user, sync_tracking=False)
     evr_balance_sats = _sync_user_evr_balance(user_wallet)
     if evr_balance_sats is not None:
         evr_balance = evr_balance_sats * Decimal('1e-8')
     else:
-        evr_balance = (user_wallet.evr_liquidity or Decimal('0')) * Decimal('1e-8')
+        evr_balance = _get_stored_network_balance(user_wallet) * Decimal('1e-8')
     asset_options = [
         {
             'symbol': symbol,

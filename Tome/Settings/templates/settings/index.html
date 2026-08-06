@@ -96,6 +96,25 @@
             margin-left: 2rem;
             transition: color 0.3s;
         }
+
+        .env-chip {
+            margin-left: 1.5rem;
+            padding: 0.45rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .env-chip strong {
+            color: var(--accent-light);
+            font-weight: 700;
+        }
         
         nav a:hover {
             color: var(--accent-primary);
@@ -206,6 +225,12 @@
         .logout-form button:hover {
             color: var(--accent-primary);
         }
+
+        @media (max-width: 768px) {
+            .env-chip {
+                display: none;
+            }
+        }
         
         .message {
             padding: 0.75rem 1rem;
@@ -292,6 +317,75 @@
         .unverified-status {
             color: var(--error-color);
         }
+
+        .network-toggle-form {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 220px;
+            justify-content: flex-end;
+        }
+
+        .network-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 56px;
+            height: 30px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(148, 163, 184, 0.4);
+            transition: 0.3s;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 3px;
+            background: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .switch input:checked + .slider {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+        }
+
+        .switch input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .network-note {
+            margin-top: 0.25rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: right;
+            max-width: 280px;
+            margin-left: auto;
+        }
     </style>
 </head>
 <body class="theme-{{ user_theme }}">
@@ -304,6 +398,7 @@
                 <a href="{% url 'listings' %}">Atomic Swaps</a>
                 <a href="{% url 'portfolio' %}">Portfolio</a>
                 <a href="{% url 'api_docs' %}">Docs</a>
+                <span class="env-chip">Network: <strong>{{ user_network_display }}</strong> | RPC: <strong>{{ user_rpc_endpoint_display }}</strong></span>
                 <form method="post" action="{% url 'logout' %}" class="logout-form">
                     {% csrf_token %}
                     <button type="submit">Logout</button>
@@ -386,6 +481,47 @@
                     </div>
                     <button>Configure</button>
                 </div>
+                <div class="settings-item">
+                    <div>
+                        <label>Evrmore Network</label>
+                        <div class="description">Switch between Testnet and Mainnet for wallet and RPC-backed features</div>
+                    </div>
+                    <form method="post" action="{% url 'change_network_mode' %}" class="network-toggle-form">
+                        {% csrf_token %}
+                        <span class="network-label">Testnet</span>
+                        <label class="switch" aria-label="Toggle Evrmore network">
+                            <input
+                                type="checkbox"
+                                {% if user_profile.network_mode == 'mainnet' %}checked{% endif %}
+                                onchange="document.getElementById('network_mode_value').value = this.checked ? 'mainnet' : 'testnet'; this.form.submit();"
+                            >
+                            <span class="slider"></span>
+                        </label>
+                        <span class="network-label">Mainnet</span>
+                        <input type="hidden" id="network_mode_value" name="network_mode" value="{{ user_profile.network_mode|default:'testnet' }}">
+                    </form>
+                </div>
+                <div class="settings-item">
+                    <div>
+                        <label>RPC Endpoint Preference</label>
+                        <div class="description">Choose whether to prefer Public endpoints or your Local node first</div>
+                    </div>
+                    <form method="post" action="{% url 'change_rpc_endpoint_mode' %}" class="network-toggle-form">
+                        {% csrf_token %}
+                        <span class="network-label">Public</span>
+                        <label class="switch" aria-label="Toggle RPC endpoint preference">
+                            <input
+                                type="checkbox"
+                                {% if user_profile.rpc_endpoint_mode == 'local' %}checked{% endif %}
+                                onchange="document.getElementById('rpc_endpoint_mode_value').value = this.checked ? 'local' : 'public'; this.form.submit();"
+                            >
+                            <span class="slider"></span>
+                        </label>
+                        <span class="network-label">Local</span>
+                        <input type="hidden" id="rpc_endpoint_mode_value" name="rpc_endpoint_mode" value="{{ user_profile.rpc_endpoint_mode|default:'public' }}">
+                    </form>
+                </div>
+                <div class="network-note">If the preferred endpoint fails, the app automatically falls back to the other endpoint type.</div>
                 <div class="settings-item">
                     <div>
                         <label>Language</label>

@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import Http404
 from .rpc import RPC
+from Tome.rpc_client import get_current_network_mode
 import datetime
 import time
 
@@ -11,6 +12,7 @@ def explorer(request):
     network_stats = {}
     recent_blocks = []
     blocks_per_page = 10
+    selected_network_mode = get_current_network_mode()
     
     # Handle search
     search_query = request.GET.get('search', '').strip()
@@ -84,7 +86,7 @@ def explorer(request):
                 'block_height': 2847563,
                 'difficulty': 15432.8976543,
                 'hashrate': 1234567890.12,
-                'chain': 'main',
+                'chain': 'main' if selected_network_mode == 'mainnet' else 'test',
                 'blocks': 2847563,
                 'bestblockhash': 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2',
             }

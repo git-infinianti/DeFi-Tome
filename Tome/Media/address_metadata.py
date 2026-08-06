@@ -25,6 +25,7 @@ from Wallet.rip10 import (
 )
 from Wallet.rpc import RPC, create_and_send_issue_unique_transaction
 from Wallet.wallet import Wallet
+from Tome.rpc_client import get_current_network_mode
 
 
 class AddressMetadataTagError(Exception):
@@ -304,7 +305,10 @@ def _controlled_address_wifs(user) -> list[tuple[str, str]]:
 
     addresses: list[tuple[str, str]] = []
     seen_addresses: set[str] = set()
-    wallet_addresses = WalletAddress.objects.filter(wallet=user_wallet).order_by(
+    wallet_addresses = WalletAddress.objects.filter(
+        wallet=user_wallet,
+        network_mode=get_current_network_mode(),
+    ).order_by(
         "account", "is_change", "index"
     )
     for wallet_address in wallet_addresses:
@@ -317,8 +321,25 @@ def _controlled_address_wifs(user) -> list[tuple[str, str]]:
     if addresses:
         return addresses
 
-    wallet = Wallet(user_wallet.entropy, user_wallet.passphrase)
-    return [(wallet.get_address(), wallet.get_wif())]
+    wallet = Wallet(
+        user_wallet.entropy,
+        user_wallet.passphrase,
+        network_mode=get_current_network_mode(),
+    )
+    address = wallet.get_address()
+    wif = wallet.get_wif()
+    WalletAddress.objects.get_or_create(
+        wallet=user_wallet,
+        network_mode=get_current_network_mode(),
+        account=0,
+        index=0,
+        is_change=False,
+        defaults={
+            "address": address,
+            "wif": wif,
+        },
+    )
+    return [(address, wif)]
 
 
 def _wif_for_controlled_address(user, target_address: str) -> str:

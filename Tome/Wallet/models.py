@@ -10,22 +10,37 @@ class UserWallet(models.Model):
     passphrase = models.CharField(max_length=256, blank=True)
     evr_liquidity = models.DecimalField(max_digits=20, decimal_places=8, default=Decimal('0'))
     last_balance_update = models.DateTimeField(blank=True, null=True)
+    evr_liquidity_mainnet = models.DecimalField(max_digits=20, decimal_places=8, default=Decimal('0'))
+    evr_liquidity_testnet = models.DecimalField(max_digits=20, decimal_places=8, default=Decimal('0'))
+    last_balance_update_mainnet = models.DateTimeField(blank=True, null=True)
+    last_balance_update_testnet = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"UserWallet(name={self.name}, user_id={self.user_id})"
 
 class WalletAddress(models.Model):
+    NETWORK_MODE_MAINNET = 'mainnet'
+    NETWORK_MODE_TESTNET = 'testnet'
+    NETWORK_MODE_CHOICES = [
+        (NETWORK_MODE_MAINNET, 'Mainnet'),
+        (NETWORK_MODE_TESTNET, 'Testnet'),
+    ]
+
     wallet = models.ForeignKey(UserWallet, on_delete=models.CASCADE, related_name='addresses')
+    network_mode = models.CharField(max_length=10, choices=NETWORK_MODE_CHOICES, default=NETWORK_MODE_MAINNET)
     address = models.CharField(max_length=256)
     wif = models.CharField(max_length=256)
     account = models.PositiveIntegerField()
     index = models.PositiveIntegerField()
     is_change = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('wallet', 'network_mode', 'account', 'index', 'is_change')
     
     def __str__(self):
-        return f"WalletAddress(address={self.address}, index={self.index})"
+        return f"WalletAddress(address={self.address}, network={self.network_mode}, index={self.index})"
 
 
 class TrackedAsset(models.Model):

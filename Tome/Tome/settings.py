@@ -54,6 +54,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'Settings.middleware.UserNetworkModeMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -162,4 +163,31 @@ EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@defitome.com')
+
+# Evrmore RPC routing defaults
+DEFAULT_EVRMORE_NETWORK = config('DEFAULT_EVRMORE_NETWORK', default='testnet')
+DEFAULT_EVRMORE_RPC_ENDPOINT_MODE = config('DEFAULT_EVRMORE_RPC_ENDPOINT_MODE', default='public')
+RPC_DATADIR = config('RPC_DATADIR', default='/tmp/evrmore')
+RPC_MAINNET_DATADIR = config('RPC_MAINNET_DATADIR', default=RPC_DATADIR)
+RPC_TESTNET_DATADIR = config('RPC_TESTNET_DATADIR', default=RPC_DATADIR)
+
+RPC_MAINNET_USER = config('RPC_MAINNET_USER', default='') or None
+RPC_MAINNET_PASSWORD = config('RPC_MAINNET_PASSWORD', default='') or None
+RPC_MAINNET_PORT = config('RPC_MAINNET_PORT', default='', cast=str) or None
+
+RPC_TESTNET_USER = config('RPC_TESTNET_USER', default='') or None
+RPC_TESTNET_PASSWORD = config('RPC_TESTNET_PASSWORD', default='') or None
+RPC_TESTNET_PORT = config('RPC_TESTNET_PORT', default='', cast=str) or None
+
+RPC_TIMEOUT_SECONDS = config('RPC_TIMEOUT_SECONDS', default=10, cast=int)
+RPC_PUBLIC_TIMEOUT_SECONDS = config('RPC_PUBLIC_TIMEOUT_SECONDS', default=10, cast=int)
+
+EVRMORE_PUBLIC_RPC_MAINNET_URL = config(
+    'EVRMORE_PUBLIC_RPC_MAINNET_URL',
+    default='https://evr-rpc-mainnet.evrmorecoin.org/rpc',
+)
+EVRMORE_PUBLIC_RPC_TESTNET_URL = config(
+    'EVRMORE_PUBLIC_RPC_TESTNET_URL',
+    default='https://evr-rpc-testnet.evrmorecoin.org/rpc',
+)
 

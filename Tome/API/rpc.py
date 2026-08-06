@@ -3,11 +3,7 @@ RPC client wrapper for Evrmore blockchain operations.
 This module provides access to all Evrmore RPC commands for the API.
 """
 
-from decouple import config
-from evrmore_rpc import EvrmoreClient
-
-# Initialize RPC client
-RPC = EvrmoreClient(datadir=config('RPC_DATADIR', default='/tmp/evrmore'))
+from Tome.rpc_client import RPC
 
 
 class EvrmoreRPC:

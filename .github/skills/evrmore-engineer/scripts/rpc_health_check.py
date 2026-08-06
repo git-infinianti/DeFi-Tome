@@ -2,9 +2,9 @@
 """Check EVRMore public RPC health and emit a compact JSON report.
 
 Usage:
-  python .github/skills/evrmore-market-research-rpc/scripts/rpc_health_check.py
-  python .github/skills/evrmore-market-research-rpc/scripts/rpc_health_check.py --network mainnet
-  python .github/skills/evrmore-market-research-rpc/scripts/rpc_health_check.py --network both --timeout 8
+    python .github/skills/evrmore-engineer/scripts/rpc_health_check.py
+    python .github/skills/evrmore-engineer/scripts/rpc_health_check.py --network mainnet
+    python .github/skills/evrmore-engineer/scripts/rpc_health_check.py --network both --timeout 8
 """
 
 from __future__ import annotations
