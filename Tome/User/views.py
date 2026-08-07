@@ -17,6 +17,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from Settings.views import send_verification_email
 from Listings.models import Listing
+from Tome.rpc_client import get_current_network_mode
 
 
 WALLET_LOGIN_ADDRESS_SESSION_KEY = 'evrmore_wallet_login_address'
@@ -332,7 +333,9 @@ def manage_evrmore_wallet_authentication(request):
 @login_required
 def home(request):
     # Get the 3 most recent listings
-    recent_listings = Listing.objects.all().select_related('item', 'seller').order_by('-listing_date')[:3]
+    recent_listings = Listing.objects.filter(
+        network_mode=get_current_network_mode(),
+    ).select_related('item', 'seller').order_by('-listing_date')[:3]
     return render(request, 'home/index.html', {'listings': recent_listings})
 
 

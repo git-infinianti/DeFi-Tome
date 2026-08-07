@@ -6,6 +6,7 @@ SATOSHIS_PER_EVR = Decimal('100000000')
 DEFAULT_FEE_EVR = Decimal('0.0001')
 DEFAULT_FEE_CONF_TARGET = 6
 DEFAULT_FEE_ESTIMATE_MODE = 'CONSERVATIVE'
+FEE_SAFETY_MULTIPLIER = Decimal('1.05')
 DUST_THRESHOLD_SATS = 546
 MAX_SEQUENCE = 0xFFFFFFFF
 RBF_SEQUENCE = 0xFFFFFFFD
@@ -49,6 +50,28 @@ def _estimate_tx_size_bytes(input_count, output_count):
     return 10 + (int(input_count) * 148) + (int(output_count) * 34)
 
 
+def _raw_tx_size_bytes(raw_tx_hex):
+    try:
+        normalized = str(raw_tx_hex or '').strip()
+    except Exception:
+        return 0
+
+    if not normalized or len(normalized) % 2 != 0:
+        return 0
+
+    return len(normalized) // 2
+
+
+def _estimate_signed_tx_size_bytes(raw_tx_hex, input_count):
+    unsigned_size = _raw_tx_size_bytes(raw_tx_hex)
+    if unsigned_size <= 0:
+        return 0
+
+    # P2PKH-style inputs are ~41 bytes unsigned and ~148 bytes signed.
+    per_input_signature_overhead = 107
+    return unsigned_size + (int(input_count) * per_input_signature_overhead)
+
+
 def _get_estimated_feerate_evr_per_kb(conf_target=DEFAULT_FEE_CONF_TARGET,
                                       estimate_mode=DEFAULT_FEE_ESTIMATE_MODE):
     target = max(1, min(1008, int(conf_target or DEFAULT_FEE_CONF_TARGET)))
@@ -88,10 +111,54 @@ def _get_estimated_feerate_evr_per_kb(conf_target=DEFAULT_FEE_CONF_TARGET,
     return feerate_decimal, {'blocks': result.get('blocks')}
 
 
+def _parse_positive_decimal(value):
+    try:
+        parsed = Decimal(str(value))
+    except Exception:
+        return None
+
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def _get_fee_floor_evr_per_kb():
+    """Return a conservative fee-rate floor from relay and mempool settings."""
+    candidates = []
+    errors = []
+
+    try:
+        mempool_info = RPC.getmempoolinfo()
+        if isinstance(mempool_info, dict):
+            mempool_floor = _parse_positive_decimal(mempool_info.get('mempoolminfee'))
+            if mempool_floor is not None:
+                candidates.append(mempool_floor)
+    except Exception as exc:
+        errors.append(f'getmempoolinfo: {str(exc)}')
+
+    try:
+        network_info = RPC.getnetworkinfo()
+        if isinstance(network_info, dict):
+            relay_fee = _parse_positive_decimal(network_info.get('relayfee'))
+            incremental_fee = _parse_positive_decimal(network_info.get('incrementalfee'))
+            if relay_fee is not None:
+                candidates.append(relay_fee)
+            if incremental_fee is not None:
+                candidates.append(incremental_fee)
+    except Exception as exc:
+        errors.append(f'getnetworkinfo: {str(exc)}')
+
+    if not candidates:
+        return None, {'errors': errors}
+
+    return max(candidates), {'errors': errors}
+
+
 def _resolve_fee_satoshis(explicit_fee_evr, input_count, output_count,
                           conf_target=DEFAULT_FEE_CONF_TARGET,
                           estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
-                          fallback_fee_evr=DEFAULT_FEE_EVR):
+                          fallback_fee_evr=DEFAULT_FEE_EVR,
+                          tx_size_bytes=None):
     if explicit_fee_evr is not None:
         return _to_satoshis(explicit_fee_evr)
 
@@ -99,11 +166,28 @@ def _resolve_fee_satoshis(explicit_fee_evr, input_count, output_count,
         conf_target=conf_target,
         estimate_mode=estimate_mode,
     )
-    if feerate is None:
+    fee_floor, _floor_meta = _get_fee_floor_evr_per_kb()
+
+    effective_feerate = None
+    if feerate is not None and fee_floor is not None:
+        effective_feerate = max(feerate, fee_floor)
+    elif feerate is not None:
+        effective_feerate = feerate
+    elif fee_floor is not None:
+        effective_feerate = fee_floor
+
+    if effective_feerate is None:
         return _to_satoshis(fallback_fee_evr)
 
-    tx_size_kb = Decimal(_estimate_tx_size_bytes(input_count, output_count)) / Decimal('1000')
-    estimated_fee_evr = (feerate * tx_size_kb).quantize(Decimal('0.00000001'), rounding=ROUND_UP)
+    estimated_size_bytes = int(tx_size_bytes or 0)
+    if estimated_size_bytes <= 0:
+        estimated_size_bytes = _estimate_tx_size_bytes(input_count, output_count)
+
+    tx_size_kb = Decimal(estimated_size_bytes) / Decimal('1000')
+    estimated_fee_evr = (effective_feerate * tx_size_kb * FEE_SAFETY_MULTIPLIER).quantize(
+        Decimal('0.00000001'),
+        rounding=ROUND_UP,
+    )
     estimated_fee_satoshis = _to_satoshis(estimated_fee_evr)
 
     if estimated_fee_satoshis <= 0:
@@ -120,13 +204,17 @@ def _sequence_for_input(locktime=0, replaceable=False):
     return MAX_SEQUENCE
 
 
-def _get_address_utxos(address):
+def _get_address_utxos(address, asset_name=None):
     last_error = None
     utxos = None
 
+    request_obj = {'addresses': [address]}
+    if asset_name:
+        request_obj['assetName'] = str(asset_name)
+
     for call in (
-        lambda: RPC.getaddressutxos({'addresses': [address]}),
-        lambda: RPC.getaddressutxos({'addresses': [address], 'chainInfo': True}),
+        lambda: RPC.getaddressutxos(request_obj),
+        lambda: RPC.getaddressutxos({**request_obj, 'chainInfo': True}),
         lambda: RPC.getaddressutxos(addresses=[address]),
         lambda: RPC.getaddressutxos(addresses=address),
     ):
@@ -170,22 +258,49 @@ def _asset_name_from_utxo(utxo_item):
     )
 
 
+def _is_evr_utxo(utxo_item):
+    asset_name = _asset_name_from_utxo(utxo_item)
+    if not asset_name:
+        return True
+    return str(asset_name).upper() == 'EVR'
+
+
 def _amount_from_utxo(utxo_item):
-    return (
+    explicit = (
         utxo_item.get('amount')
         or utxo_item.get('assetAmount')
         or utxo_item.get('assetamount')
-        or 0
     )
+    if explicit is not None:
+        return explicit
+
+    satoshis = utxo_item.get('satoshis')
+    if satoshis is None:
+        return 0
+
+    try:
+        return Decimal(int(satoshis)) / Decimal('100000000')
+    except (InvalidOperation, TypeError, ValueError):
+        return 0
 
 
 def _asset_amount_from_utxo(utxo_item):
-    return (
+    explicit = (
         utxo_item.get('assetAmount')
         or utxo_item.get('assetamount')
         or utxo_item.get('amount')
-        or 0
     )
+    if explicit is not None:
+        return explicit
+
+    satoshis = utxo_item.get('satoshis')
+    if satoshis is None:
+        return 0
+
+    try:
+        return Decimal(int(satoshis)) / Decimal('100000000')
+    except (InvalidOperation, TypeError, ValueError):
+        return 0
 
 
 def _find_authorization_input(utxos, authorization_asset_name, sequence=None):
@@ -246,7 +361,7 @@ def _select_evr_inputs(address, required_satoshis, locktime=0, replaceable=False
     include_sequence = sequence != MAX_SEQUENCE
 
     for utxo_item in utxos:
-        if _asset_name_from_utxo(utxo_item):
+        if not _is_evr_utxo(utxo_item):
             continue
 
         satoshis = int(utxo_item.get('satoshis', 0))
@@ -277,9 +392,9 @@ def _select_asset_inputs(address, asset_name, required_quantity, locktime=0, rep
     include_sequence = sequence != MAX_SEQUENCE
     selected_inputs = []
     selected_quantity = Decimal('0')
-    selected_satoshis = 0
+    selected_coin_satoshis = 0
 
-    for utxo_item in _get_address_utxos(address):
+    for utxo_item in _get_address_utxos(address, asset_name=normalized_asset_name):
         utxo_asset_name = _asset_name_from_utxo(utxo_item)
         if not utxo_asset_name or str(utxo_asset_name).upper() != normalized_asset_name:
             continue
@@ -294,7 +409,10 @@ def _select_asset_inputs(address, asset_name, required_quantity, locktime=0, rep
 
         selected_inputs.append(_build_input_entry(utxo_item, sequence if include_sequence else None))
         selected_quantity += asset_amount
-        selected_satoshis += int(utxo_item.get('satoshis', 0))
+
+        # Asset UTXO satoshis encode asset quantity and are not EVR coin value.
+        if _is_evr_utxo(utxo_item):
+            selected_coin_satoshis += int(utxo_item.get('satoshis', 0))
 
         if selected_quantity >= required_quantity:
             break
@@ -304,7 +422,7 @@ def _select_asset_inputs(address, asset_name, required_quantity, locktime=0, rep
             f'Insufficient {asset_name} balance. Needed: {required_quantity}, available: {selected_quantity}.'
         )
 
-    return selected_inputs, selected_quantity, selected_satoshis
+    return selected_inputs, selected_quantity, selected_coin_satoshis
 
 
 def _select_inputs_for_operation(from_address, required_evr_satoshis,
@@ -342,6 +460,10 @@ def _select_inputs_for_operation(from_address, required_evr_satoshis,
         satoshis = int(utxo_item.get('satoshis', 0))
 
         if txid is None or vout < 0 or satoshis <= 0:
+            continue
+
+        # Use only coin-like EVR UTXOs for fee/value funding.
+        if not _is_evr_utxo(utxo_item):
             continue
 
         if (txid, vout) in selected_keys:
@@ -493,6 +615,7 @@ def create_raw_asset_operation_transaction(
     selected_total = 0
     final_fee_satoshis = provisional_fee_sats
     outputs = OrderedDict()
+    raw_tx = None
 
     for _ in range(4):
         required_satoshis = burn_satoshis + final_fee_satoshis
@@ -530,23 +653,33 @@ def create_raw_asset_operation_transaction(
             owner_token_change_output=owner_token_change_output,
         )
 
+        raw_tx = create_raw_transaction(
+            inputs=selected_inputs,
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
+        measured_signed_size = _estimate_signed_tx_size_bytes(raw_tx, len(selected_inputs))
+
         next_fee_satoshis = _resolve_fee_satoshis(
             explicit_fee_evr=fee_evr,
             input_count=len(selected_inputs),
             output_count=len(outputs),
             conf_target=fee_conf_target,
             estimate_mode=fee_estimate_mode,
+            tx_size_bytes=measured_signed_size,
         )
         if next_fee_satoshis == final_fee_satoshis:
             break
         final_fee_satoshis = next_fee_satoshis
 
-    raw_tx = create_raw_transaction(
-        inputs=selected_inputs,
-        outputs=outputs,
-        locktime=locktime,
-        replaceable=replaceable,
-    )
+    if raw_tx is None:
+        raw_tx = create_raw_transaction(
+            inputs=selected_inputs,
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
 
     return {
         'raw_tx': raw_tx,
@@ -620,6 +753,7 @@ def create_raw_evr_transaction(from_address, to_address, amount_evr, change_addr
     selected_inputs = []
     selected_total = 0
     outputs = OrderedDict()
+    raw_tx = None
     final_fee_satoshis = provisional_fee_sats
 
     for _ in range(4):
@@ -642,23 +776,33 @@ def create_raw_evr_transaction(from_address, to_address, amount_evr, change_addr
         if change_satoshis >= DUST_THRESHOLD_SATS:
             outputs[change_address or from_address] = _evr_output_value(_satoshis_to_evr(change_satoshis))
 
+        raw_tx = create_raw_transaction(
+            inputs=selected_inputs,
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
+        measured_signed_size = _estimate_signed_tx_size_bytes(raw_tx, len(selected_inputs))
+
         next_fee_satoshis = _resolve_fee_satoshis(
             explicit_fee_evr=fee_evr,
             input_count=len(selected_inputs),
             output_count=len(outputs),
             conf_target=fee_conf_target,
             estimate_mode=fee_estimate_mode,
+            tx_size_bytes=measured_signed_size,
         )
         if next_fee_satoshis == final_fee_satoshis:
             break
         final_fee_satoshis = next_fee_satoshis
 
-    raw_tx = create_raw_transaction(
-        inputs=selected_inputs,
-        outputs=outputs,
-        locktime=locktime,
-        replaceable=replaceable,
-    )
+    if raw_tx is None:
+        raw_tx = create_raw_transaction(
+            inputs=selected_inputs,
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
 
     return {
         'raw_tx': raw_tx,
@@ -698,69 +842,144 @@ def create_raw_asset_transfer_transaction(from_address, to_address, asset_name, 
                                           change_address=None, fee_evr=None,
                                           fee_conf_target=DEFAULT_FEE_CONF_TARGET,
                                           fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
-                                          locktime=0, replaceable=False):
+                                          locktime=0, replaceable=False,
+                                          asset_change_address=None):
     """
     Create a raw asset transfer transaction without signing or broadcasting it.
     """
-    utxos = _get_address_utxos(from_address)
+    try:
+        asset_quantity_decimal = Decimal(str(asset_quantity))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise Exception('Asset quantity must be a valid decimal value.') from exc
+
+    if asset_quantity_decimal <= 0:
+        raise Exception('Asset quantity must be greater than zero.')
+
     sequence = _sequence_for_input(locktime=locktime, replaceable=replaceable)
     include_sequence = sequence != MAX_SEQUENCE
 
-    inputs = []
-    total_satoshis = 0
-    for utxo_item in utxos:
-        satoshis = int(utxo_item.get('satoshis', 0))
-        if satoshis <= 0:
-            continue
-        total_satoshis += satoshis
-        inputs.append(_build_input_entry(utxo_item, sequence if include_sequence else None))
+    # Select the asset-bearing inputs first, then add EVR inputs for fees.
+    asset_inputs, selected_asset_quantity, _asset_input_coin_satoshis = _select_asset_inputs(
+        address=from_address,
+        asset_name=asset_name,
+        required_quantity=asset_quantity_decimal,
+        locktime=locktime,
+        replaceable=replaceable,
+    )
 
-    if not inputs:
-        raise Exception(f'No spendable UTXOs found for address {from_address}.')
+    selected_asset_change = selected_asset_quantity - asset_quantity_decimal
+
+    utxos = _get_address_utxos(from_address)
+    selected_keys = {(item['txid'], item['vout']) for item in asset_inputs}
+
+    evr_candidates = sorted(
+        [
+            item for item in utxos
+            if _is_evr_utxo(item)
+            and int(item.get('satoshis', 0)) > 0
+            and (
+                item.get('txid'),
+                int(item.get('outputIndex', item.get('vout', -1)))
+            ) not in selected_keys
+        ],
+        key=lambda item: int(item.get('satoshis', 0)),
+        reverse=True,
+    )
+
+    evr_inputs = []
+    evr_total_satoshis = 0
+
+    def _select_evr_fee_inputs(required_fee_sats):
+        nonlocal evr_inputs, evr_total_satoshis
+        evr_inputs = []
+        evr_total_satoshis = 0
+        for utxo_item in evr_candidates:
+            satoshis = int(utxo_item.get('satoshis', 0))
+            if satoshis <= 0:
+                continue
+            evr_inputs.append(_build_input_entry(utxo_item, sequence if include_sequence else None))
+            evr_total_satoshis += satoshis
+            if evr_total_satoshis >= required_fee_sats:
+                break
+
+        if evr_total_satoshis < required_fee_sats:
+            needed = _satoshis_to_evr(required_fee_sats)
+            available = _satoshis_to_evr(evr_total_satoshis)
+            raise Exception(f'Insufficient EVR for fees. Needed: {needed}, available: {available}.')
+
     outputs = OrderedDict()
+    coin_change_address = change_address or from_address
+    asset_change_target = asset_change_address or from_address
+    raw_tx = None
 
+    # Iteratively re-estimate fee based on selected inputs/outputs.
     fee_satoshis = _resolve_fee_satoshis(
         explicit_fee_evr=fee_evr,
-        input_count=len(inputs),
-        output_count=2,
+        input_count=len(asset_inputs) + 1,
+        output_count=2 if selected_asset_change > 0 else 1,
         conf_target=fee_conf_target,
         estimate_mode=fee_estimate_mode,
     )
 
-    for _ in range(3):
-        if total_satoshis < fee_satoshis:
-            needed = _satoshis_to_evr(fee_satoshis)
-            available = _satoshis_to_evr(total_satoshis)
-            raise Exception(f'Insufficient EVR for fees. Needed: {needed}, available: {available}.')
+    for _ in range(4):
+        _select_evr_fee_inputs(fee_satoshis)
 
         outputs = OrderedDict()
-        change_satoshis = total_satoshis - fee_satoshis
-        if change_satoshis >= DUST_THRESHOLD_SATS:
-            outputs[change_address or from_address] = _evr_output_value(_satoshis_to_evr(change_satoshis))
-
         outputs[to_address] = {
             'transfer': {
-                asset_name: float(Decimal(str(asset_quantity))),
+                asset_name: float(asset_quantity_decimal),
             }
         }
 
+        if selected_asset_change > 0:
+            if asset_change_target == to_address:
+                raise Exception('Asset change address must differ from destination address.')
+            outputs[asset_change_target] = {
+                'transfer': {
+                    asset_name: float(selected_asset_change),
+                }
+            }
+
+        total_input_satoshis = evr_total_satoshis
+        coin_change_satoshis = total_input_satoshis - fee_satoshis
+
+        if coin_change_satoshis >= DUST_THRESHOLD_SATS:
+            if coin_change_address in outputs:
+                raise Exception(
+                    'Coin change address conflicts with asset output address. '
+                    'Use a distinct change_address or asset_change_address.'
+                )
+            outputs[coin_change_address] = _evr_output_value(_satoshis_to_evr(coin_change_satoshis))
+
+        candidate_inputs = [*asset_inputs, *evr_inputs]
+        raw_tx = create_raw_transaction(
+            inputs=candidate_inputs,
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
+        measured_signed_size = _estimate_signed_tx_size_bytes(raw_tx, len(candidate_inputs))
+
         next_fee_sats = _resolve_fee_satoshis(
             explicit_fee_evr=fee_evr,
-            input_count=len(inputs),
+            input_count=len(candidate_inputs),
             output_count=len(outputs),
             conf_target=fee_conf_target,
             estimate_mode=fee_estimate_mode,
+            tx_size_bytes=measured_signed_size,
         )
         if next_fee_sats == fee_satoshis:
             break
         fee_satoshis = next_fee_sats
 
-    raw_tx = create_raw_transaction(
-        inputs=inputs,
-        outputs=outputs,
-        locktime=locktime,
-        replaceable=replaceable,
-    )
+    inputs = [*asset_inputs, *evr_inputs]
+    if raw_tx is None:
+        raw_tx = create_raw_transaction(
+            inputs=inputs,
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
 
     return {
         'raw_tx': raw_tx,
@@ -773,7 +992,8 @@ def create_and_send_asset_transfer_transaction(from_address, to_address, asset_n
                                                change_address=None, fee_evr=None,
                                                fee_conf_target=DEFAULT_FEE_CONF_TARGET,
                                                fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
-                                               locktime=0, replaceable=False, wif_keys=None):
+                                               locktime=0, replaceable=False, wif_keys=None,
+                                               asset_change_address=None):
     """
     Create, sign, and broadcast an asset transfer transaction.
     """
@@ -788,6 +1008,7 @@ def create_and_send_asset_transfer_transaction(from_address, to_address, asset_n
         fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
+        asset_change_address=asset_change_address,
     )
     txid = sign_and_broadcast_raw_transaction(tx_data['raw_tx'], wif_keys=wif_keys)
 
@@ -847,6 +1068,7 @@ def create_raw_atomic_asset_evr_swap_transaction(
     buyer_inputs = []
     buyer_input_satoshis = 0
     outputs = []
+    raw_tx = None
 
     for _ in range(4):
         asset_output_count = 2 if asset_change_quantity > 0 else 1
@@ -892,23 +1114,34 @@ def create_raw_atomic_asset_evr_swap_transaction(
         if buyer_native_change >= DUST_THRESHOLD_SATS:
             outputs.append({buyer_address: _evr_output_value(_satoshis_to_evr(buyer_native_change))})
 
+        candidate_inputs = [*seller_inputs, *buyer_inputs]
+        raw_tx = create_raw_transaction(
+            inputs=candidate_inputs,
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
+        measured_signed_size = _estimate_signed_tx_size_bytes(raw_tx, len(candidate_inputs))
+
         next_fee_satoshis = _resolve_fee_satoshis(
             explicit_fee_evr=fee_evr,
-            input_count=len(seller_inputs) + len(buyer_inputs),
+            input_count=len(candidate_inputs),
             output_count=len(outputs),
             conf_target=fee_conf_target,
             estimate_mode=fee_estimate_mode,
+            tx_size_bytes=measured_signed_size,
         )
         if next_fee_satoshis == final_fee_satoshis:
             break
         final_fee_satoshis = next_fee_satoshis
 
-    raw_tx = create_raw_transaction(
-        inputs=[*seller_inputs, *buyer_inputs],
-        outputs=outputs,
-        locktime=locktime,
-        replaceable=replaceable,
-    )
+    if raw_tx is None:
+        raw_tx = create_raw_transaction(
+            inputs=[*seller_inputs, *buyer_inputs],
+            outputs=outputs,
+            locktime=locktime,
+            replaceable=replaceable,
+        )
 
     return {
         'raw_tx': raw_tx,
@@ -1000,6 +1233,7 @@ def create_and_send_issue_asset_transaction(
     fee_estimate_mode=DEFAULT_FEE_ESTIMATE_MODE,
     locktime=0,
     replaceable=False,
+    wif_keys=None,
 ):
     is_subasset = '/' in str(asset_name)
     burn_address = BURN_ADDRESS_ISSUE_SUBASSET if is_subasset else BURN_ADDRESS_ISSUE_ASSET
@@ -1028,6 +1262,7 @@ def create_and_send_issue_asset_transaction(
         fee_estimate_mode=fee_estimate_mode,
         locktime=locktime,
         replaceable=replaceable,
+        wif_keys=wif_keys,
     )
 
 

@@ -457,11 +457,13 @@
                         <p>Securely backup your wallet credentials</p>
                     </div>
                 </a>
-                <div class="management-card">
-                    <div class="management-card-icon">📊</div>
-                    <h3>View Transactions</h3>
-                    <p>Check your transaction history</p>
-                </div>
+                <a href="{% url 'wallet_transactions' %}" class="management-card-link">
+                    <div class="management-card">
+                        <div class="management-card-icon">📊</div>
+                        <h3>View Transactions</h3>
+                        <p>Check your transaction history</p>
+                    </div>
+                </a>
                 <a href="{% url 'send_funds' %}" class="management-card-link">
                     <div class="management-card">
                         <div class="management-card-icon">💸</div>

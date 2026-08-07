@@ -1,5 +1,7 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
+from django.db.models import Q
 from decimal import Decimal
 
 # Create your models here.
@@ -43,7 +45,61 @@ class WalletAddress(models.Model):
         return f"WalletAddress(address={self.address}, network={self.network_mode}, index={self.index})"
 
 
+class WalletProfile(models.Model):
+    wallet = models.ForeignKey(UserWallet, on_delete=models.CASCADE, related_name='profiles')
+    address = models.OneToOneField(WalletAddress, on_delete=models.CASCADE, related_name='wallet_profile')
+    network_mode = models.CharField(
+        max_length=10,
+        choices=WalletAddress.NETWORK_MODE_CHOICES,
+        default=WalletAddress.NETWORK_MODE_MAINNET,
+    )
+    name = models.CharField(max_length=100)
+    is_main = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('wallet', 'network_mode'),
+                condition=Q(is_main=True),
+                name='wallet_one_main_profile_per_network',
+            ),
+            models.UniqueConstraint(
+                fields=('wallet', 'network_mode', 'name'),
+                name='wallet_profile_name_unique_per_network',
+            ),
+        ]
+
+    def clean(self):
+        if not self.address_id:
+            return
+
+        if self.address.wallet_id != self.wallet_id:
+            raise ValidationError('The selected address does not belong to this wallet.')
+
+        if self.address.network_mode != self.network_mode:
+            raise ValidationError('The selected address is not on the active network for this profile.')
+
+        if self.address.is_change:
+            raise ValidationError('Change addresses cannot be assigned to wallet profiles.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"WalletProfile(name={self.name}, address={self.address.address}, main={self.is_main})"
+
+
 class TrackedAsset(models.Model):
+    NETWORK_MODE_MAINNET = 'mainnet'
+    NETWORK_MODE_TESTNET = 'testnet'
+    NETWORK_MODE_CHOICES = [
+        (NETWORK_MODE_MAINNET, 'Mainnet'),
+        (NETWORK_MODE_TESTNET, 'Testnet'),
+    ]
+
     ASSET_TYPE_MAIN = 'main'
     ASSET_TYPE_SUB = 'sub'
     ASSET_TYPE_UNIQUE = 'unique'
@@ -52,8 +108,6 @@ class TrackedAsset(models.Model):
     ASSET_TYPE_SUB_QUALIFIER = 'sub_qualifier'
     ASSET_TYPE_RESTRICTED = 'restricted'
     ASSET_TYPE_ADMIN = 'administrator'
-    ASSET_TYPE_NFT = 'nft'
-    ASSET_TYPE_VAULT = 'vault'
 
     ASSET_TYPE_CHOICES = (
         (ASSET_TYPE_MAIN, 'Main'),
@@ -64,15 +118,14 @@ class TrackedAsset(models.Model):
         (ASSET_TYPE_SUB_QUALIFIER, 'Sub Qualifier'),
         (ASSET_TYPE_RESTRICTED, 'Restricted'),
         (ASSET_TYPE_ADMIN, 'Administrator'),
-        (ASSET_TYPE_NFT, 'NFT'),
-        (ASSET_TYPE_VAULT, 'Vault'),
     )
 
-    symbol = models.CharField(max_length=255, unique=True)
+    symbol = models.CharField(max_length=255)
+    network_mode = models.CharField(max_length=10, choices=NETWORK_MODE_CHOICES, default=NETWORK_MODE_MAINNET)
     asset_type = models.CharField(max_length=32, choices=ASSET_TYPE_CHOICES, default=ASSET_TYPE_MAIN)
     total_quantity = models.DecimalField(max_digits=30, decimal_places=8, default=Decimal('0'))
     
-    # NFT/Vault specific fields
+    # Asset metadata fields
     ipfs_hash = models.CharField(max_length=255, blank=True, null=True, help_text="IPFS hash for asset metadata")
     has_toll = models.BooleanField(default=False, help_text="Whether asset has transfer toll enabled")
     toll_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), help_text="Toll percentage for transfers")
@@ -83,8 +136,16 @@ class TrackedAsset(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('symbol', 'network_mode'),
+                name='tracked_asset_symbol_network_unique',
+            ),
+        ]
+
     def __str__(self):
-        return f"TrackedAsset(symbol={self.symbol}, type={self.asset_type})"
+        return f"TrackedAsset(symbol={self.symbol}, network={self.network_mode}, type={self.asset_type})"
 
 
 class TrackedAssetHolding(models.Model):

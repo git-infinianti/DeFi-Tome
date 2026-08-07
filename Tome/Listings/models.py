@@ -63,10 +63,16 @@ class ListingReview(models.Model):
 
 # Create Listing model
 class Listing(models.Model):
+    NETWORK_MODE_CHOICES = [
+        ('testnet', 'Testnet'),
+        ('mainnet', 'Mainnet'),
+    ]
+
     item = models.ForeignKey(ListingItem, on_delete=models.CASCADE, related_name='listings')
     seller = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='listings')
     price = models.DecimalField(max_digits=20, decimal_places=8)
     quantity_available = models.DecimalField(max_digits=20, decimal_places=8, default=1)
+    network_mode = models.CharField(max_length=10, choices=NETWORK_MODE_CHOICES, default='testnet', db_index=True)
     listing_date = models.DateTimeField(auto_now_add=True)
     
     # Atomic swap fields
@@ -87,8 +93,14 @@ class ListingOrder(models.Model):
 # Order Book DEX Models
 class TradingPair(models.Model):
     """Trading pair for order book (e.g., BTC/USDT)"""
+    NETWORK_MODE_CHOICES = [
+        ('testnet', 'Testnet'),
+        ('mainnet', 'Mainnet'),
+    ]
+
     base_token = models.CharField(max_length=10)  # e.g., BTC
     quote_token = models.CharField(max_length=10)  # e.g., USDT
+    network_mode = models.CharField(max_length=10, choices=NETWORK_MODE_CHOICES, default='testnet', db_index=True)
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='created_pairs')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -100,7 +112,7 @@ class TradingPair(models.Model):
     price_change_24h = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # percentage
     
     class Meta:
-        unique_together = ['base_token', 'quote_token']
+        unique_together = ['base_token', 'quote_token', 'network_mode']
     
     def __str__(self):
         return f"{self.base_token}/{self.quote_token}"

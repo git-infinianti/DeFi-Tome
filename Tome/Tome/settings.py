@@ -11,10 +11,12 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
-from decouple import config
+from decouple import AutoConfig
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BASE_DIR.parent
+config = AutoConfig(search_path=str(PROJECT_ROOT))
 MARKET_SYNC_ADDRESS = config('MARKET_SYNC_ADDRESS', default='EL5MFdaF8msRaUEDu9mxSNniPSswNmNRgq')
 
 # Quick-start development settings - unsuitable for production
@@ -165,19 +167,47 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@defitome.com')
 
 # Evrmore RPC routing defaults
-DEFAULT_EVRMORE_NETWORK = config('DEFAULT_EVRMORE_NETWORK', default='testnet')
+DEFAULT_EVRMORE_NETWORK = config('DEFAULT_EVRMORE_NETWORK', default=config('NETWORK', default='testnet'))
 DEFAULT_EVRMORE_RPC_ENDPOINT_MODE = config('DEFAULT_EVRMORE_RPC_ENDPOINT_MODE', default='public')
 RPC_DATADIR = config('RPC_DATADIR', default='/tmp/evrmore')
 RPC_MAINNET_DATADIR = config('RPC_MAINNET_DATADIR', default=RPC_DATADIR)
 RPC_TESTNET_DATADIR = config('RPC_TESTNET_DATADIR', default=RPC_DATADIR)
 
-RPC_MAINNET_USER = config('RPC_MAINNET_USER', default='') or None
-RPC_MAINNET_PASSWORD = config('RPC_MAINNET_PASSWORD', default='') or None
-RPC_MAINNET_PORT = config('RPC_MAINNET_PORT', default='', cast=str) or None
+RPC_MAINNET_USER = config(
+    'RPC_MAINNET_USER',
+    default=config('MAINNET_RPC_USERNAME', default=config('RPC_USERNAME', default='')),
+) or None
+RPC_MAINNET_PASSWORD = config(
+    'RPC_MAINNET_PASSWORD',
+    default=config('MAINNET_RPC_PASSWORD', default=config('RPC_PASSWORD', default='')),
+) or None
+RPC_MAINNET_PORT = config(
+    'MAINNET_RPC_PORT',
+    default=config('RPC_MAINNET_PORT', default=config('RPC_PORT', default='')),
+    cast=str,
+) or None
+RPC_MAINNET_HOST = config('RPC_MAINNET_HOST', default=config('RPC_HOST', default='')) or None
+RPC_MAINNET_SCHEME = config('RPC_MAINNET_SCHEME', default='http')
+RPC_MAINNET_PATH = config('RPC_MAINNET_PATH', default='/rpc')
+RPC_MAINNET_URL = config('RPC_MAINNET_URL', default='') or None
 
-RPC_TESTNET_USER = config('RPC_TESTNET_USER', default='') or None
-RPC_TESTNET_PASSWORD = config('RPC_TESTNET_PASSWORD', default='') or None
-RPC_TESTNET_PORT = config('RPC_TESTNET_PORT', default='', cast=str) or None
+RPC_TESTNET_USER = config(
+    'RPC_TESTNET_USER',
+    default=config('TESTNET_RPC_USERNAME', default=config('RPC_USERNAME', default='')),
+) or None
+RPC_TESTNET_PASSWORD = config(
+    'RPC_TESTNET_PASSWORD',
+    default=config('TESTNET_RPC_PASSWORD', default=config('RPC_PASSWORD', default='')),
+) or None
+RPC_TESTNET_PORT = config(
+    'TESTNET_RPC_PORT',
+    default=config('RPC_TESTNET_PORT', default=config('RPC_PORT', default='')),
+    cast=str,
+) or None
+RPC_TESTNET_HOST = config('RPC_TESTNET_HOST', default=config('RPC_HOST', default='')) or None
+RPC_TESTNET_SCHEME = config('RPC_TESTNET_SCHEME', default='http')
+RPC_TESTNET_PATH = config('RPC_TESTNET_PATH', default='/rpc')
+RPC_TESTNET_URL = config('RPC_TESTNET_URL', default='') or None
 
 RPC_TIMEOUT_SECONDS = config('RPC_TIMEOUT_SECONDS', default=10, cast=int)
 RPC_PUBLIC_TIMEOUT_SECONDS = config('RPC_PUBLIC_TIMEOUT_SECONDS', default=10, cast=int)

@@ -95,7 +95,8 @@ class RoutedEvrmoreClient:
             except Exception as exc:
                 error_message = f'{backend_name}: {str(exc)}'
                 attempt_errors.append(error_message)
-                logger.warning(
+                # Fall through to alternate backends quietly; emit warning only if all fail.
+                logger.debug(
                     'RPC call failed. network=%s endpoint_mode=%s backend=%s method=%s error=%s',
                     network_mode,
                     rpc_endpoint_mode,
@@ -105,6 +106,13 @@ class RoutedEvrmoreClient:
                 )
 
         combined_errors = ' | '.join(attempt_errors) if attempt_errors else 'No backends available'
+        logger.warning(
+            "RPC call '%s' failed across all backends. network=%s endpoint_mode=%s attempts=%s",
+            method_name,
+            network_mode,
+            rpc_endpoint_mode,
+            combined_errors,
+        )
         raise Exception(
             f"RPC call '{method_name}' failed for network '{network_mode}' "
             f"with endpoint mode '{rpc_endpoint_mode}'. "
@@ -132,12 +140,41 @@ class RoutedEvrmoreClient:
             rpcuser = getattr(django_settings, 'RPC_MAINNET_USER', None)
             rpcpassword = getattr(django_settings, 'RPC_MAINNET_PASSWORD', None)
             rpcport = getattr(django_settings, 'RPC_MAINNET_PORT', None)
+            rpchost = getattr(django_settings, 'RPC_MAINNET_HOST', None)
+            rpcscheme = getattr(django_settings, 'RPC_MAINNET_SCHEME', 'http')
+            rpcpath = getattr(django_settings, 'RPC_MAINNET_PATH', '/rpc')
+            rpcurl = getattr(django_settings, 'RPC_MAINNET_URL', None)
         else:
             datadir = getattr(django_settings, 'RPC_TESTNET_DATADIR', default_datadir)
             testnet = True
             rpcuser = getattr(django_settings, 'RPC_TESTNET_USER', None)
             rpcpassword = getattr(django_settings, 'RPC_TESTNET_PASSWORD', None)
             rpcport = getattr(django_settings, 'RPC_TESTNET_PORT', None)
+            rpchost = getattr(django_settings, 'RPC_TESTNET_HOST', None)
+            rpcscheme = getattr(django_settings, 'RPC_TESTNET_SCHEME', 'http')
+            rpcpath = getattr(django_settings, 'RPC_TESTNET_PATH', '/rpc')
+            rpcurl = getattr(django_settings, 'RPC_TESTNET_URL', None)
+
+        if rpcurl or rpchost:
+            url = str(rpcurl).strip() if rpcurl else None
+            if not url:
+                host = str(rpchost).strip()
+                path = str(rpcpath or '/rpc').strip() or '/rpc'
+                if not path.startswith('/'):
+                    path = f'/{path}'
+                if rpcport is not None:
+                    url = f"{rpcscheme}://{host}:{int(rpcport)}{path}"
+                else:
+                    url = f"{rpcscheme}://{host}{path}"
+
+            client = AuthRpcClient(
+                url=url,
+                timeout=timeout,
+                username=rpcuser,
+                password=rpcpassword,
+            )
+            self._clients[cache_key] = client
+            return client
 
         kwargs = {
             'datadir': datadir,
@@ -206,6 +243,65 @@ class PublicRpcClient:
                 timeout=self.timeout,
             )
             response.raise_for_status()
+
+            body = response.json()
+            if body.get('error'):
+                raise Exception(str(body['error']))
+            return body.get('result')
+
+        return _call
+
+
+class AuthRpcClient:
+    """JSON-RPC client for authenticated local/remote Evrmore node endpoints."""
+
+    def __init__(self, url, timeout=10, username=None, password=None):
+        normalized_url = str(url).strip()
+        if not normalized_url:
+            raise ValueError('RPC URL is required for AuthRpcClient.')
+        self.url = normalized_url.rstrip('/')
+        self.timeout = timeout
+        self.auth = (username, password) if username or password else None
+
+        # Some local node deployments expose JSON-RPC on '/' instead of '/rpc'.
+        self.fallback_url = None
+        if self.url.endswith('/rpc'):
+            self.fallback_url = self.url[:-4] or '/'
+
+    def __getattr__(self, method_name):
+        def _call(*args, **kwargs):
+            params = list(args)
+            if kwargs:
+                params.append(kwargs)
+
+            payload = {
+                'jsonrpc': '1.0',
+                'id': 'defitome-local-rpc',
+                'method': method_name,
+                'params': params,
+            }
+
+            response = None
+            try:
+                response = requests.post(
+                    self.url,
+                    json=payload,
+                    timeout=self.timeout,
+                    auth=self.auth,
+                )
+                response.raise_for_status()
+            except requests.HTTPError as exc:
+                status_code = exc.response.status_code if exc.response is not None else None
+                if status_code == 404 and self.fallback_url:
+                    response = requests.post(
+                        self.fallback_url,
+                        json=payload,
+                        timeout=self.timeout,
+                        auth=self.auth,
+                    )
+                    response.raise_for_status()
+                else:
+                    raise
 
             body = response.json()
             if body.get('error'):

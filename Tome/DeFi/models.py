@@ -189,6 +189,11 @@ class SwapTransaction(models.Model):
 
 class SwapOffer(models.Model):
     """Atomic asset-for-EVR swap offer between two users."""
+    NETWORK_MODE_CHOICES = [
+        ('testnet', 'Testnet'),
+        ('mainnet', 'Mainnet'),
+    ]
+
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('settling', 'Settling'),
@@ -211,6 +216,7 @@ class SwapOffer(models.Model):
     request_token = models.CharField(max_length=255)
     request_amount = models.DecimalField(max_digits=20, decimal_places=8)
     
+    network_mode = models.CharField(max_length=10, choices=NETWORK_MODE_CHOICES, default='testnet', db_index=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     escrow_id = models.CharField(max_length=100, blank=True)
     expires_at = models.DateTimeField()

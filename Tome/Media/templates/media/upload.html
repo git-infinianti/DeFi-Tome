@@ -268,6 +268,31 @@
         .btn-secondary:hover {
             background: rgba(59, 130, 246, 0.2);
         }
+
+        .cid-result {
+            margin-top: 1.5rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .cid-value {
+            margin: 0.75rem 0 1rem;
+            color: var(--accent-light);
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+
+        .cid-qr {
+            width: 220px;
+            max-width: 100%;
+            height: auto;
+            background: white;
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
         
         @media (max-width: 768px) {
             .page-title h1 {
@@ -336,6 +361,17 @@
                 <button type="submit" class="btn btn-primary" id="submitBtn" disabled>📤 Upload to IPFS</button>
             </div>
         </form>
+
+        {% if uploaded_cid %}
+        <div class="cid-result">
+            <h3>Upload Complete</h3>
+            <p style="margin-top: 0.5rem; color: var(--text-muted);">CID:</p>
+            <div class="cid-value">{{ uploaded_cid }}</div>
+            {% if uploaded_cid_qr_data_uri %}
+            <img src="{{ uploaded_cid_qr_data_uri }}" alt="QR code for uploaded CID" class="cid-qr">
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
     
     <script>

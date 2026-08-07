@@ -353,11 +353,15 @@ def create_swap_offer(request, listing_id=None):
 @login_required
 def accept_swap_offer(request, offer_id):
     """Accept and settle an atomic asset-for-EVR swap offer."""
-    swap_offer = get_object_or_404(SwapOffer, id=offer_id)
+    current_network = get_current_network_mode()
+    swap_offer = get_object_or_404(SwapOffer, id=offer_id, network_mode=current_network)
 
     if request.method == 'POST':
         with transaction.atomic():
-            swap_offer = SwapOffer.objects.select_for_update().select_related('initiator').get(id=offer_id)
+            swap_offer = SwapOffer.objects.select_for_update().select_related('initiator').get(
+                id=offer_id,
+                network_mode=current_network,
+            )
 
             if swap_offer.status != 'pending':
                 messages.error(request, 'This atomic swap is no longer available.')
@@ -411,7 +415,10 @@ def accept_swap_offer(request, offer_id):
             )
         except Exception as exc:
             with transaction.atomic():
-                failed_offer = SwapOffer.objects.select_for_update().get(id=offer_id)
+                failed_offer = SwapOffer.objects.select_for_update().get(
+                    id=offer_id,
+                    network_mode=current_network,
+                )
                 if failed_offer.status == 'settling':
                     failed_offer.status = 'pending'
                     failed_offer.counterparty_id = original_counterparty_id
@@ -427,7 +434,10 @@ def accept_swap_offer(request, offer_id):
             )
         except Exception as exc:
             with transaction.atomic():
-                failed_offer = SwapOffer.objects.select_for_update().get(id=offer_id)
+                failed_offer = SwapOffer.objects.select_for_update().get(
+                    id=offer_id,
+                    network_mode=current_network,
+                )
                 if failed_offer.status == 'settling':
                     failed_offer.settlement_error = (
                         f'Broadcast outcome requires reconciliation before retrying: {str(exc)}'
@@ -437,7 +447,10 @@ def accept_swap_offer(request, offer_id):
             return redirect('available_swap_offers')
 
         with transaction.atomic():
-            settled_offer = SwapOffer.objects.select_for_update().select_related('initiator').get(id=offer_id)
+            settled_offer = SwapOffer.objects.select_for_update().select_related('initiator').get(
+                id=offer_id,
+                network_mode=current_network,
+            )
             if settled_offer.status != 'settling' or settled_offer.counterparty != request.user:
                 messages.error(request, 'Atomic swap settlement state changed unexpectedly.')
                 return redirect('available_swap_offers')
@@ -471,7 +484,12 @@ def accept_swap_offer(request, offer_id):
 @login_required
 def cancel_swap_offer(request, offer_id):
     """Cancel a pending atomic swap."""
-    swap_offer = get_object_or_404(SwapOffer, id=offer_id, initiator=request.user)
+    swap_offer = get_object_or_404(
+        SwapOffer,
+        id=offer_id,
+        initiator=request.user,
+        network_mode=get_current_network_mode(),
+    )
     
     if swap_offer.status != 'pending':
         messages.error(request, 'Only pending atomic swaps can be cancelled.')
@@ -491,7 +509,10 @@ def cancel_swap_offer(request, offer_id):
 @login_required
 def my_swap_offers(request):
     """Display a user's created atomic swaps."""
-    offers = SwapOffer.objects.filter(initiator=request.user).order_by('-created_at')
+    offers = SwapOffer.objects.filter(
+        initiator=request.user,
+        network_mode=get_current_network_mode(),
+    ).order_by('-created_at')
     
     context = {
         'offers': offers,
@@ -501,12 +522,15 @@ def my_swap_offers(request):
 @login_required
 def available_swap_offers(request):
     """Display atomic swaps available to the user."""
+    current_network = get_current_network_mode()
+
     # Show atomic swaps that are:
     # 1. Pending
     # 2. Not expired
     # 3. Either no counterparty or counterparty is current user
     # 4. Not created by current user
     offers = SwapOffer.objects.filter(
+        Q(network_mode=current_network),
         Q(status='pending'),
         Q(expires_at__gt=timezone.now()),
         Q(counterparty__isnull=True) | Q(counterparty=request.user)
@@ -523,7 +547,8 @@ def available_swap_offers(request):
 def my_swap_history(request):
     """Display a user's completed atomic swap history."""
     swaps = P2PSwapTransaction.objects.filter(
-        Q(initiator=request.user) | Q(counterparty=request.user)
+        Q(initiator=request.user) | Q(counterparty=request.user),
+        swap_offer__network_mode=get_current_network_mode(),
     ).order_by('-completed_at')
     
     context = {

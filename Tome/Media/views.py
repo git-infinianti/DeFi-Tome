@@ -13,6 +13,7 @@ from .address_metadata import (
     verify_stored_address_metadata_tag,
 )
 from .models import AddressMetadataTag, IPFSUpload
+from Tome.qr import build_qr_data_uri
 from Wallet.rip10 import (
     RIP10ValidationError,
     build_address_name_tag,
@@ -83,6 +84,14 @@ def media_upload(request):
             
             if ipfs_hash:
                 messages.success(request, f'File uploaded successfully! IPFS Hash: {ipfs_hash}')
+                return render(
+                    request,
+                    'media/upload.html',
+                    {
+                        'uploaded_cid': ipfs_hash,
+                        'uploaded_cid_qr_data_uri': build_qr_data_uri(ipfs_hash),
+                    },
+                )
             else:
                 messages.warning(request, 'File saved but IPFS upload failed. Make sure IPFS daemon is running.')
             

@@ -207,6 +207,36 @@
             color: #64748b;
             font-size: 0.9rem;
         }
+
+        .qr-image {
+            width: 220px;
+            max-width: 100%;
+            height: auto;
+            background: white;
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .clipboard-tools {
+            margin-top: 1rem;
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .clipboard-address {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.75rem;
+            width: 100%;
+        }
+
+        .muted-note {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
         
         .btn {
             display: inline-block;
@@ -300,8 +330,25 @@
             </div>
             
             <div class="qr-placeholder">
-                <p>🔳 QR Code</p>
-                <p style="margin-top: 0.5rem;">QR code functionality can be added in the future</p>
+                <p style="margin-bottom: 0.75rem;">🔳 Receive Address QR</p>
+                {% if address_qr_data_uri %}
+                <img src="{{ address_qr_data_uri }}" alt="QR code for receiving address" class="qr-image">
+                {% else %}
+                <p style="margin-top: 0.5rem;">Unable to generate QR code for this address.</p>
+                {% endif %}
+            </div>
+
+            <div class="qr-placeholder">
+                <p style="margin-bottom: 0.75rem;">📋 Paste Address From Clipboard</p>
+                <p class="muted-note" style="margin-bottom: 1rem;">If your browser allows clipboard access, you can paste an address and generate a QR code for sharing.</p>
+                <div class="clipboard-tools">
+                    <button class="btn btn-secondary" onclick="pasteAddressAndGenerateQr()">Paste Address From Clipboard</button>
+                    <input id="clipboard-address" class="clipboard-address" type="text" placeholder="Address from clipboard will appear here" aria-label="Clipboard address">
+                    <button class="btn btn-secondary" onclick="generateQrFromInput()">Generate QR For Entered Address</button>
+                </div>
+                <div id="clipboard-qr-result" style="display: none; margin-top: 1rem;">
+                    <img id="clipboard-qr-image" alt="QR code generated from pasted address" class="qr-image">
+                </div>
             </div>
             
             <div class="action-buttons">
@@ -320,6 +367,54 @@
                 console.error('Failed to copy:', err);
                 alert('Failed to copy address');
             });
+        }
+
+        async function requestAddressQr(address) {
+            const response = await fetch(`{% url 'address_qr' %}?address=${encodeURIComponent(address)}`);
+            const data = await response.json();
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Unable to generate QR code.');
+            }
+            return data.qr_data_uri;
+        }
+
+        async function pasteAddressAndGenerateQr() {
+            const input = document.getElementById('clipboard-address');
+            try {
+                if (!navigator.clipboard || !navigator.clipboard.readText) {
+                    alert('Clipboard read is not supported in this browser.');
+                    return;
+                }
+                const clipboardText = (await navigator.clipboard.readText()).trim();
+                if (!clipboardText) {
+                    alert('Clipboard is empty.');
+                    return;
+                }
+                input.value = clipboardText;
+                await generateQrFromInput();
+            } catch (err) {
+                console.error('Failed to read clipboard:', err);
+                alert('Clipboard access failed. You can paste manually into the field.');
+            }
+        }
+
+        async function generateQrFromInput() {
+            const input = document.getElementById('clipboard-address');
+            const address = input.value.trim();
+            if (!address) {
+                alert('Enter or paste an address first.');
+                return;
+            }
+
+            try {
+                const qrDataUri = await requestAddressQr(address);
+                const image = document.getElementById('clipboard-qr-image');
+                image.src = qrDataUri;
+                document.getElementById('clipboard-qr-result').style.display = 'block';
+            } catch (err) {
+                console.error('Failed generating QR:', err);
+                alert(err.message || 'Failed to generate QR code.');
+            }
         }
     </script>
 </body>

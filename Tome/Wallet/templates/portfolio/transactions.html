@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeFi Tome - Wallet Transactions</title>
+    <style>
+        :root, .theme-dark, .theme- {
+            --bg-gradient-start: #0f172a;
+            --bg-gradient-end: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: rgba(148, 163, 184, 0.2);
+            --card-bg: rgba(30, 41, 59, 0.82);
+            --card-bg-hover: rgba(59, 130, 246, 0.08);
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-light: #60a5fa;
+            --accent-purple: #a78bfa;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --neutral: #64748b;
+        }
+
+        .theme-light {
+            --bg-gradient-start: #f8fafc;
+            --bg-gradient-end: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --border-color: rgba(15, 23, 42, 0.15);
+            --card-bg: rgba(255, 255, 255, 0.92);
+            --card-bg-hover: rgba(59, 130, 246, 0.04);
+            --accent-primary: #2563eb;
+            --accent-secondary: #7c3aed;
+            --accent-light: #2563eb;
+            --accent-purple: #9333ea;
+            --success: #15803d;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --neutral: #64748b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-copy h1 {
+            font-size: 2.3rem;
+            background: linear-gradient(135deg, var(--accent-light), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.75rem;
+        }
+
+        .header-copy p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            padding: 0.85rem 1.15rem;
+            border-radius: 10px;
+            border: 1px solid rgba(96, 165, 250, 0.28);
+            text-decoration: none;
+            color: var(--text-primary);
+            background: rgba(15, 23, 42, 0.25);
+            transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            border-color: rgba(96, 165, 250, 0.5);
+            background: var(--card-bg-hover);
+        }
+
+        .btn-active {
+            background: rgba(59, 130, 246, 0.18);
+            border-color: rgba(96, 165, 250, 0.5);
+            color: var(--accent-light);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .toolbar-copy {
+            color: var(--text-secondary);
+        }
+
+        .toolbar-copy strong {
+            color: var(--text-primary);
+        }
+
+        .toolbar-actions {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+
+        .stat-card,
+        .content-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.35rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 0.55rem;
+        }
+
+        .stat-value {
+            font-size: 1.15rem;
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .status-list {
+            display: grid;
+            gap: 0.85rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-card {
+            border-radius: 12px;
+            padding: 1rem 1.15rem;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--text-secondary);
+        }
+
+        .status-card strong {
+            color: var(--text-primary);
+        }
+
+        .transaction-list {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .transaction-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.35rem;
+            transition: border-color 0.18s ease, transform 0.18s ease;
+        }
+
+        .transaction-item:hover {
+            border-color: rgba(96, 165, 250, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .transaction-top,
+        .transaction-bottom {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .transaction-top {
+            margin-bottom: 1rem;
+        }
+
+        .transaction-id {
+            font-family: 'SFMono-Regular', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.96rem;
+            color: var(--accent-light);
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .transaction-id:hover {
+            color: var(--accent-purple);
+        }
+
+        .transaction-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.3rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .badge-received {
+            background: rgba(34, 197, 94, 0.16);
+            color: var(--success);
+        }
+
+        .badge-sent {
+            background: rgba(239, 68, 68, 0.14);
+            color: var(--danger);
+        }
+
+        .badge-mixed {
+            background: rgba(245, 158, 11, 0.16);
+            color: var(--warning);
+        }
+
+        .badge-neutral {
+            background: rgba(100, 116, 139, 0.18);
+            color: var(--neutral);
+        }
+
+        .transaction-time,
+        .transaction-secondary {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+        }
+
+        .amount-group {
+            display: grid;
+            gap: 0.45rem;
+        }
+
+        .amount-main {
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        .amount-positive {
+            color: var(--success);
+        }
+
+        .amount-negative {
+            color: var(--danger);
+        }
+
+        .amount-neutral {
+            color: var(--text-secondary);
+        }
+
+        .asset-change-list {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .asset-chip {
+            border-radius: 999px;
+            padding: 0.35rem 0.7rem;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.22);
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+        }
+
+        .empty-state h2 {
+            font-size: 1.45rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .empty-state p {
+            color: var(--text-muted);
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        .empty-actions {
+            margin-top: 1.25rem;
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1.25rem;
+            }
+
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                justify-content: flex-start;
+            }
+
+            .transaction-bottom {
+                flex-direction: column;
+            }
+
+            .asset-change-list {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-copy">
+                <h1>Wallet Transactions</h1>
+                <p>Latest on-chain activity for your primary wallet address.</p>
+            </div>
+            <div class="header-actions">
+                <a href="{% url 'portfolio' %}" class="btn">Back to Wallet</a>
+                <a href="{% url 'send_funds' %}" class="btn">Send or Receive</a>
+            </div>
+        </header>
+
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Wallet</div>
+                <div class="stat-value">{{ user_wallet.name }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Network</div>
+                <div class="stat-value">{{ network_mode|title }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Address</div>
+                <div class="stat-value">{{ address }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Indexed Addresses</div>
+                <div class="stat-value">{{ address_count }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Showing</div>
+                <div class="stat-value">{{ transactions|length }} of {{ total_indexed_transactions }} indexed</div>
+            </div>
+        </section>
+
+        <section class="content-card toolbar">
+            <div class="toolbar-copy">
+                <strong>History window:</strong>
+                {% if showing_all_transactions %}
+                showing all indexed wallet transaction{{ transactions|length|pluralize }} across {{ address_count }} address{{ address_count|pluralize }}.
+                {% else %}
+                showing the latest {{ transactions|length }} indexed wallet transaction{{ transactions|length|pluralize }} across {{ address_count }} address{{ address_count|pluralize }}.
+                {% endif %}
+            </div>
+            <div class="toolbar-actions">
+                {% for option in limit_options %}
+                <a href="?limit={{ option.value }}" class="btn {% if option.is_selected %}btn-active{% endif %}">{{ option.label }}</a>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if txids_error or deltas_error or detail_errors %}
+        <section class="status-list">
+            {% if txids_error %}
+            <div class="status-card"><strong>Transaction history unavailable.</strong> {{ txids_error }}</div>
+            {% endif %}
+            {% if deltas_error %}
+            <div class="status-card"><strong>Delta summary unavailable.</strong> {{ deltas_error }}</div>
+            {% endif %}
+            {% if detail_errors %}
+            <div class="status-card"><strong>Some transaction details could not be loaded.</strong> {{ detail_errors|length }} transaction{{ detail_errors|length|pluralize }} fell back to ID-only rows.</div>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if transactions %}
+        <section class="transaction-list">
+            {% for tx in transactions %}
+            <article class="transaction-item">
+                <div class="transaction-top">
+                    <div>
+                        <a href="{% url 'transaction_detail' tx.txid %}" class="transaction-id">{{ tx.txid }}</a>
+                    </div>
+                    <div class="transaction-meta">
+                        <span class="badge badge-{{ tx.direction }}">{{ tx.direction_label }}</span>
+                        {% if tx.confirmations is not None %}
+                        <span class="transaction-secondary">{{ tx.confirmations }} confirmation{{ tx.confirmations|pluralize }}</span>
+                        {% endif %}
+                        {% if tx.blocktime %}
+                        <span class="transaction-time">{{ tx.blocktime|date:"M d, Y H:i" }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="transaction-bottom">
+                    <div class="amount-group">
+                        {% if tx.evr_delta_display %}
+                        <div class="amount-main {% if tx.evr_delta_sats > 0 %}amount-positive{% elif tx.evr_delta_sats < 0 %}amount-negative{% else %}amount-neutral{% endif %}">{{ tx.evr_delta_display }}</div>
+                        {% else %}
+                        <div class="amount-main amount-neutral">No EVR balance delta available</div>
+                        {% endif %}
+                        <div class="transaction-secondary">
+                            {% if tx.size %}{{ tx.size }} bytes{% else %}Transaction detail limited{% endif %}
+                        </div>
+                    </div>
+                    <div class="asset-change-list">
+                        {% if tx.asset_changes %}
+                            {% for asset in tx.asset_changes %}
+                            <span class="asset-chip">{{ asset.amount_display }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="asset-chip">No asset delta</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </section>
+        {% if has_more_transactions %}
+        <section class="content-card toolbar" style="margin-top: 1rem;">
+            <div class="toolbar-copy">
+                <strong>More history is available.</strong>
+                Increase the window to inspect older indexed transactions for this wallet.
+            </div>
+            <div class="toolbar-actions">
+                {% for option in load_more_limit_options %}
+                    <a href="?limit={{ option.value }}" class="btn">{{ option.label }}</a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+        {% else %}
+        <section class="content-card empty-state">
+            <h2>No transactions found</h2>
+            <p>Your primary wallet address does not have any indexed transactions yet, or the active RPC endpoint could not provide them for the selected network.</p>
+            <div class="empty-actions">
+                <a href="{% url 'send_funds' %}" class="btn">Open Send or Receive</a>
+                <a href="{% url 'portfolio' %}" class="btn">Return to Wallet</a>
+            </div>
+        </section>
+        {% endif %}
+    </div>
+</body>
+</html>

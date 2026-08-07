@@ -1,6 +1,7 @@
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum
+from Tome.rpc_client import get_current_network_mode
 
 from .models import TrackedAsset, TrackedAssetHolding
 
@@ -34,23 +35,9 @@ def classify_asset_type(symbol: str, asset_data: dict = None) -> str:
     if '~' in symbol:
         return TrackedAsset.ASSET_TYPE_MESSAGING
     
-    # Evrmore unique assets are the on-chain representation of NFTs.
+    # Unique asset
     if '#' in symbol:
-        return TrackedAsset.ASSET_TYPE_NFT
-    
-    # Check if it's a vault asset (has toll enabled) using RPC data
-    if asset_data and asset_data.get('has_toll', False):
-        return TrackedAsset.ASSET_TYPE_VAULT
-    
-    # Check if it's an NFT (amount = 1, not reissuable, has IPFS) using RPC data
-    if asset_data:
-        amount = asset_data.get('amount', 0)
-        reissuable = asset_data.get('reissuable', True)
-        has_ipfs = asset_data.get('has_ipfs', False)
-        
-        # NFT characteristics: exactly 1 unit, not reissuable, has IPFS
-        if amount == 1 and not reissuable and has_ipfs:
-            return TrackedAsset.ASSET_TYPE_NFT
+        return TrackedAsset.ASSET_TYPE_UNIQUE
     
     # Sub-asset (contains /)
     if '/' in symbol:
@@ -72,7 +59,9 @@ def sync_tracked_assets(user, asset_balances: dict, fetch_metadata: bool = False
     if user is None:
         return
 
+    network_mode = get_current_network_mode()
     asset_symbols = set(asset_balances.keys())
+    touched_asset_ids = set()
 
     with transaction.atomic():
         # Track current assets and holdings
@@ -91,7 +80,10 @@ def sync_tracked_assets(user, asset_balances: dict, fetch_metadata: bool = False
             asset_type = classify_asset_type(symbol, asset_data)
             
             # Prepare defaults with basic info
-            defaults = {'asset_type': asset_type}
+            defaults = {
+                'asset_type': asset_type,
+                'network_mode': network_mode,
+            }
             
             # Add metadata if available
             if asset_data:
@@ -107,8 +99,10 @@ def sync_tracked_assets(user, asset_balances: dict, fetch_metadata: bool = False
             
             asset, created = TrackedAsset.objects.get_or_create(
                 symbol=symbol,
+                network_mode=network_mode,
                 defaults=defaults
             )
+            touched_asset_ids.add(asset.id)
             
             # Update asset if it exists and data has changed
             if not created:
@@ -149,20 +143,16 @@ def sync_tracked_assets(user, asset_balances: dict, fetch_metadata: bool = False
                 holding.save(update_fields=['quantity', 'updated_at'])
 
         # Zero out holdings for assets no longer present
-        user_asset_symbols = set(
-            TrackedAssetHolding.objects.filter(user=user)
-            .values_list('asset__symbol', flat=True)
+        user_holdings_qs = TrackedAssetHolding.objects.filter(
+            user=user,
+            asset__network_mode=network_mode,
         )
-        missing_symbols = user_asset_symbols - asset_symbols
-        if missing_symbols:
-            TrackedAssetHolding.objects.filter(
-                user=user,
-                asset__symbol__in=missing_symbols
-            ).update(quantity=Decimal('0'))
+        affected_asset_ids = set(user_holdings_qs.values_list('asset_id', flat=True)) | touched_asset_ids
+
+        user_holdings_qs.exclude(asset__symbol__in=asset_symbols).update(quantity=Decimal('0'))
 
         # Update total quantities for affected assets
-        affected_symbols = user_asset_symbols | asset_symbols
-        for asset in TrackedAsset.objects.filter(symbol__in=affected_symbols):
+        for asset in TrackedAsset.objects.filter(id__in=affected_asset_ids):
             total = (
                 TrackedAssetHolding.objects.filter(asset=asset)
                 .aggregate(total=Sum('quantity'))['total']

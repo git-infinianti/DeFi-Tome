@@ -13,14 +13,29 @@ from .models import (
 from Explorer.rpc import RPC
 from Wallet.models import WalletAddress
 from Wallet.wallet import Wallet
-from Wallet.asset_tracking import sync_tracked_assets
+from Wallet.asset_tracking import classify_asset_type, sync_tracked_assets
+from Wallet.models import TrackedAsset
 from Wallet.rpc import create_and_send_evr_transaction
 from Tome.rpc_client import get_current_network_mode
+from Settings.access import FEATURE_MARKET_MANAGEMENT, user_has_feature_access
 import uuid
-
-from django.conf import settings
-MARKET_SYNC_ADDRESS = settings.MARKET_SYNC_ADDRESS
 MARKET_QUOTE_TOKEN = 'EVR'
+MARKETABLE_ASSET_TYPES = {
+    TrackedAsset.ASSET_TYPE_MAIN,
+    TrackedAsset.ASSET_TYPE_SUB,
+}
+
+
+def _is_marketable_token_asset(symbol):
+    return classify_asset_type(str(symbol or '').strip()) in MARKETABLE_ASSET_TYPES
+
+
+def _marketable_asset_balances(asset_balances):
+    return {
+        symbol: balance
+        for symbol, balance in asset_balances.items()
+        if symbol != MARKET_QUOTE_TOKEN and _is_marketable_token_asset(symbol)
+    }
 
 
 def _credit_user_evr_balance_for_active_network(user_wallet, amount):
@@ -70,7 +85,8 @@ def _get_user_token_balance(user, token_symbol):
     # Get all trading pairs that involve this token
     trading_pairs = TradingPair.objects.filter(
         Q(base_token=token_symbol) | Q(quote_token=token_symbol),
-        is_active=True
+        is_active=True,
+        network_mode=get_current_network_mode(),
     )
     
     for pair in trading_pairs:
@@ -345,7 +361,9 @@ def _sync_markets_from_address(address):
 @login_required
 def listings(request):
     """Display all available atomic swaps."""
-    all_listings = Listing.objects.all().select_related('item', 'seller').order_by('-listing_date')
+    all_listings = Listing.objects.filter(
+        network_mode=get_current_network_mode(),
+    ).select_related('item', 'seller').order_by('-listing_date')
     return render(request, 'listings/index.html', {'listings': all_listings})
 
 @login_required
@@ -603,6 +621,7 @@ def create_listing(request):
                     seller=request.user,
                     price=price_decimal,
                     quantity_available=quantity_decimal,
+                    network_mode=get_current_network_mode(),
                     token_offered=token_offered,
                     preferred_token=preferred_token
                 )
@@ -629,6 +648,7 @@ def create_listing(request):
                     offer_amount=quantity_decimal,
                     request_token=preferred_token,
                     request_amount=price_decimal * quantity_decimal,  # Total price requested
+                    network_mode=get_current_network_mode(),
                     expires_at=expires_at,
                     escrow_id=f'atomic-swap-{uuid.uuid4()}'
                 )
@@ -655,7 +675,11 @@ def create_listing(request):
 @login_required
 def listing_detail(request, listing_id):
     """Display an atomic swap offer and its on-chain asset details."""
-    listing = get_object_or_404(Listing.objects.select_related('item', 'seller'), id=listing_id)
+    listing = get_object_or_404(
+        Listing.objects.select_related('item', 'seller'),
+        id=listing_id,
+        network_mode=get_current_network_mode(),
+    )
     
     # Get NFT if this is an NFT listing
     nft = None
@@ -666,6 +690,7 @@ def listing_detail(request, listing_id):
             nft = None
 
     swap_offer = listing.swap_offers.filter(
+        network_mode=get_current_network_mode(),
         status='pending',
         expires_at__gt=timezone.now(),
     ).first()
@@ -682,14 +707,20 @@ def listing_detail(request, listing_id):
 @login_required
 def dex_orderbook(request):
     """Main DEX order book interface"""
+    current_network = get_current_network_mode()
+
     # Get all active trading pairs
-    trading_pairs = TradingPair.objects.filter(is_active=True)
+    trading_pairs = TradingPair.objects.filter(is_active=True, network_mode=current_network)
     
     # Get selected pair or default to first
     selected_pair_id = request.GET.get('pair')
     if selected_pair_id:
         try:
-            selected_pair = TradingPair.objects.get(id=selected_pair_id, is_active=True)
+            selected_pair = TradingPair.objects.get(
+                id=selected_pair_id,
+                is_active=True,
+                network_mode=current_network,
+            )
         except TradingPair.DoesNotExist:
             selected_pair = trading_pairs.first() if trading_pairs.exists() else None
     else:
@@ -760,7 +791,11 @@ def place_limit_order(request):
                 messages.error(request, 'Price and quantity must be greater than zero.')
                 return redirect('dex_orderbook')
             
-            trading_pair = TradingPair.objects.get(id=pair_id, is_active=True)
+            trading_pair = TradingPair.objects.get(
+                id=pair_id,
+                is_active=True,
+                network_mode=get_current_network_mode(),
+            )
             
             # For buy orders, check if user has enough EVR balance
             if side == 'buy':
@@ -833,7 +868,11 @@ def place_market_order(request):
                 messages.error(request, 'Quantity must be greater than zero.')
                 return redirect('dex_orderbook')
             
-            trading_pair = TradingPair.objects.get(id=pair_id, is_active=True)
+            trading_pair = TradingPair.objects.get(
+                id=pair_id,
+                is_active=True,
+                network_mode=get_current_network_mode(),
+            )
             
             # Get opposite side orders for matching
             if side == 'buy':
@@ -1031,7 +1070,11 @@ def place_stop_loss_order(request):
                 messages.error(request, 'Trigger price and quantity must be greater than zero.')
                 return redirect('dex_orderbook')
             
-            trading_pair = TradingPair.objects.get(id=pair_id, is_active=True)
+            trading_pair = TradingPair.objects.get(
+                id=pair_id,
+                is_active=True,
+                network_mode=get_current_network_mode(),
+            )
             
             # Create stop-loss order
             StopLossOrder.objects.create(
@@ -1120,18 +1163,30 @@ def cancel_stop_loss(request, order_id):
 @login_required
 def my_orders(request):
     """Display user's active and historical orders"""
+    current_network = get_current_network_mode()
+
     # Get user's limit orders
-    limit_orders = LimitOrder.objects.filter(user=request.user).select_related('trading_pair').order_by('-created_at')
+    limit_orders = LimitOrder.objects.filter(
+        user=request.user,
+        trading_pair__network_mode=current_network,
+    ).select_related('trading_pair').order_by('-created_at')
     
     # Get user's market orders
-    market_orders = MarketOrder.objects.filter(user=request.user).select_related('trading_pair').order_by('-created_at')
+    market_orders = MarketOrder.objects.filter(
+        user=request.user,
+        trading_pair__network_mode=current_network,
+    ).select_related('trading_pair').order_by('-created_at')
     
     # Get user's stop-loss orders
-    stop_loss_orders = StopLossOrder.objects.filter(user=request.user).select_related('trading_pair').order_by('-created_at')
+    stop_loss_orders = StopLossOrder.objects.filter(
+        user=request.user,
+        trading_pair__network_mode=current_network,
+    ).select_related('trading_pair').order_by('-created_at')
     
     # Get user's trade history
     trade_history = OrderExecution.objects.filter(
-        Q(buyer=request.user) | Q(seller=request.user)
+        Q(buyer=request.user) | Q(seller=request.user),
+        trading_pair__network_mode=current_network,
     ).select_related('trading_pair', 'buyer', 'seller').order_by('-created_at')[:50]
     
     context = {
@@ -1342,13 +1397,17 @@ def _check_stop_loss_triggers(trading_pair):
 @login_required
 def markets_view(request):
     """Display all trading pairs/markets like SafeTrade interface"""
-    _sync_markets_from_address(MARKET_SYNC_ADDRESS)
+    current_network = get_current_network_mode()
+    can_manage_markets = user_has_feature_access(request.user, FEATURE_MARKET_MANAGEMENT)
 
     # Get filter from query params
     filter_token = request.GET.get('filter', 'ALL').upper()
     
     # Get all active trading pairs
-    markets = TradingPair.objects.filter(is_active=True).select_related('created_by')
+    markets = TradingPair.objects.filter(
+        is_active=True,
+        network_mode=current_network,
+    ).select_related('created_by')
     
     # Update 24h stats for all markets (in production, this should be a background task)
     for market in markets:
@@ -1359,7 +1418,7 @@ def markets_view(request):
         markets = markets.filter(Q(base_token=filter_token) | Q(quote_token=filter_token))
     
     # Get unique quote tokens for filter buttons
-    all_markets = TradingPair.objects.filter(is_active=True)
+    all_markets = TradingPair.objects.filter(is_active=True, network_mode=current_network)
     quote_tokens = set()
     for market in all_markets:
         quote_tokens.add(market.quote_token)
@@ -1373,6 +1432,8 @@ def markets_view(request):
         'markets': markets.order_by('-volume_24h'),
         'filter_token': filter_token,
         'quote_tokens': quote_tokens,
+        'can_manage_markets': can_manage_markets,
+        'current_network': current_network,
         # 'favorites': favorites,
     }
     return render(request, 'listings/markets.html', context)
@@ -1380,17 +1441,18 @@ def markets_view(request):
 @login_required
 def create_market(request):
     """Allow users to create new trading pairs/markets"""
+    if not user_has_feature_access(request.user, FEATURE_MARKET_MANAGEMENT):
+        messages.error(request, 'You are not authorized to create or manage markets.')
+        return redirect('markets')
+
+    current_network = get_current_network_mode()
+
     # Fetch user's available assets (excluding EVR)
     user_assets, error = _get_user_asset_balances(request.user)
-    available_base_tokens = [
-        symbol for symbol in sorted(user_assets.keys()) 
-        if symbol != 'EVR'
-    ]
-    # Quote tokens: EVR plus any other assets the user has
-    available_quote_tokens = ['EVR'] + [
-        symbol for symbol in sorted(user_assets.keys()) 
-        if symbol != 'EVR'
-    ]
+    marketable_assets = _marketable_asset_balances(user_assets)
+    available_base_tokens = sorted(marketable_assets.keys())
+    # Quote tokens: EVR plus any other marketable token assets the user has.
+    available_quote_tokens = ['EVR'] + sorted(marketable_assets.keys())
     
     if request.method == 'POST':
         base_token = request.POST.get('base_token', '').strip().upper()
@@ -1404,7 +1466,30 @@ def create_market(request):
                 'quote_token': quote_token,
                 'available_base_tokens': available_base_tokens,
                 'available_quote_tokens': available_quote_tokens,
-                'user_assets': user_assets
+                'user_assets': user_assets,
+                'current_network': current_network,
+            })
+
+        if not _is_marketable_token_asset(base_token):
+            messages.error(request, 'Only token assets can be used as a market base asset. Unique and admin assets are not allowed.')
+            return render(request, 'listings/create_market.html', {
+                'base_token': base_token,
+                'quote_token': quote_token,
+                'available_base_tokens': available_base_tokens,
+                'available_quote_tokens': available_quote_tokens,
+                'user_assets': user_assets,
+                'current_network': current_network,
+            })
+
+        if quote_token != MARKET_QUOTE_TOKEN and not _is_marketable_token_asset(quote_token):
+            messages.error(request, 'Quote assets must be EVR or a token asset. Unique and admin assets are not allowed.')
+            return render(request, 'listings/create_market.html', {
+                'base_token': base_token,
+                'quote_token': quote_token,
+                'available_base_tokens': available_base_tokens,
+                'available_quote_tokens': available_quote_tokens,
+                'user_assets': user_assets,
+                'current_network': current_network,
             })
         
         # Validate base token is not EVR
@@ -1415,18 +1500,8 @@ def create_market(request):
                 'quote_token': quote_token,
                 'available_base_tokens': available_base_tokens,
                 'available_quote_tokens': available_quote_tokens,
-                'user_assets': user_assets
-            })
-        
-        # Validate alphanumeric
-        if not base_token.isalnum() or not quote_token.isalnum():
-            messages.error(request, 'Token symbols must be alphanumeric only.')
-            return render(request, 'listings/create_market.html', {
-                'base_token': base_token,
-                'quote_token': quote_token,
-                'available_base_tokens': available_base_tokens,
-                'available_quote_tokens': available_quote_tokens,
-                'user_assets': user_assets
+                'user_assets': user_assets,
+                'current_network': current_network,
             })
         
         # Validate they're not the same
@@ -1437,28 +1512,39 @@ def create_market(request):
                 'quote_token': quote_token,
                 'available_base_tokens': available_base_tokens,
                 'available_quote_tokens': available_quote_tokens,
-                'user_assets': user_assets
+                'user_assets': user_assets,
+                'current_network': current_network,
             })
         
         # Check if pair already exists
-        if TradingPair.objects.filter(base_token=base_token, quote_token=quote_token).exists():
+        if TradingPair.objects.filter(
+            base_token=base_token,
+            quote_token=quote_token,
+            network_mode=current_network,
+        ).exists():
             messages.error(request, f'Trading pair {base_token}/{quote_token} already exists.')
             return render(request, 'listings/create_market.html', {
                 'base_token': base_token,
                 'quote_token': quote_token,
                 'available_base_tokens': available_base_tokens,
                 'available_quote_tokens': available_quote_tokens,
-                'user_assets': user_assets
+                'user_assets': user_assets,
+                'current_network': current_network,
             })
         
         # Check if reverse pair exists
-        if TradingPair.objects.filter(base_token=quote_token, quote_token=base_token).exists():
+        if TradingPair.objects.filter(
+            base_token=quote_token,
+            quote_token=base_token,
+            network_mode=current_network,
+        ).exists():
             messages.warning(request, f'Reverse pair {quote_token}/{base_token} already exists. Consider using that instead.')
         
         # Create the trading pair
         trading_pair = TradingPair.objects.create(
             base_token=base_token,
             quote_token=quote_token,
+            network_mode=current_network,
             created_by=request.user,
             is_active=True
         )
@@ -1469,5 +1555,29 @@ def create_market(request):
     return render(request, 'listings/create_market.html', {
         'available_base_tokens': available_base_tokens,
         'available_quote_tokens': available_quote_tokens,
-        'user_assets': user_assets
+        'user_assets': user_assets,
+        'current_network': current_network,
     })
+
+
+@login_required
+def toggle_market_status(request, market_id):
+    """Allow authorized users to pause/resume a market on the active network."""
+    if request.method != 'POST':
+        return redirect('markets')
+
+    if not user_has_feature_access(request.user, FEATURE_MARKET_MANAGEMENT):
+        messages.error(request, 'You are not authorized to modify markets.')
+        return redirect('markets')
+
+    market = get_object_or_404(
+        TradingPair,
+        id=market_id,
+        network_mode=get_current_network_mode(),
+    )
+    market.is_active = not market.is_active
+    market.save(update_fields=['is_active'])
+
+    state = 'active' if market.is_active else 'paused'
+    messages.success(request, f'Market {market.base_token}/{market.quote_token} is now {state}.')
+    return redirect('markets')

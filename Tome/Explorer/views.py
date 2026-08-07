@@ -4,6 +4,130 @@ from .rpc import RPC
 from Tome.rpc_client import get_current_network_mode
 import datetime
 import time
+from decimal import Decimal, InvalidOperation
+
+
+def _format_amount(value, places=8):
+    """Format numeric amounts while preserving fixed precision for chain values."""
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    quantum = Decimal('1').scaleb(-int(places))
+    return format(decimal_value.quantize(quantum), f'.{int(places)}f')
+
+
+def _extract_output_addresses(script_pub_key):
+    if not isinstance(script_pub_key, dict):
+        return []
+
+    addresses = []
+    raw_addresses = script_pub_key.get('addresses')
+    if isinstance(raw_addresses, list):
+        for address in raw_addresses:
+            normalized = str(address or '').strip()
+            if normalized:
+                addresses.append(normalized)
+    elif isinstance(raw_addresses, str):
+        normalized = raw_addresses.strip()
+        if normalized:
+            addresses.append(normalized)
+
+    if not addresses:
+        for key in ('address', 'destination'):
+            candidate = script_pub_key.get(key)
+            normalized = str(candidate or '').strip()
+            if normalized:
+                addresses.append(normalized)
+
+    deduplicated = []
+    seen = set()
+    for address in addresses:
+        if address in seen:
+            continue
+        seen.add(address)
+        deduplicated.append(address)
+    return deduplicated
+
+
+def _normalize_transaction_outputs(vouts):
+    normalized_outputs = []
+
+    for index, vout in enumerate(vouts or []):
+        if not isinstance(vout, dict):
+            continue
+
+        script_pub_key = vout.get('scriptPubKey') if isinstance(vout.get('scriptPubKey'), dict) else {}
+        addresses = _extract_output_addresses(script_pub_key)
+
+        asset_data = script_pub_key.get('asset') if isinstance(script_pub_key.get('asset'), dict) else {}
+        asset_name = str(asset_data.get('name') or asset_data.get('asset_name') or '').strip() or None
+        asset_amount_display = None
+        if asset_name:
+            asset_amount_display = _format_amount(asset_data.get('amount'))
+
+        message = asset_data.get('message')
+        asset_message = str(message).strip() if message is not None else ''
+
+        evr_value_display = _format_amount(vout.get('value'))
+
+        normalized_outputs.append({
+            'index': vout.get('n', index),
+            'evr_value_display': evr_value_display,
+            'output_type': script_pub_key.get('type') or 'unknown',
+            'script_hex': script_pub_key.get('hex') or '',
+            'addresses': addresses,
+            'primary_address': addresses[0] if addresses else None,
+            'asset_name': asset_name,
+            'asset_amount_display': asset_amount_display,
+            'asset_message': asset_message,
+        })
+
+    return normalized_outputs
+
+
+def _summarize_transaction_outputs(vout_display):
+    """Build a compact summary for transaction outputs."""
+    evr_total = Decimal('0')
+    asset_output_count = 0
+    asset_names = set()
+
+    for output in vout_display or []:
+        evr_value = output.get('evr_value_display')
+        if evr_value is not None:
+            try:
+                evr_total += Decimal(str(evr_value))
+            except (InvalidOperation, TypeError, ValueError):
+                pass
+
+        asset_name = output.get('asset_name')
+        if asset_name:
+            asset_output_count += 1
+            asset_names.add(asset_name)
+
+    return {
+        'output_count': len(vout_display or []),
+        'evr_total_display': format(evr_total.quantize(Decimal('0.00000001')), '.8f'),
+        'asset_output_count': asset_output_count,
+        'asset_name_count': len(asset_names),
+    }
+
+
+def _rpc_call(method_name, *args):
+    """Dispatch a direct Evrmore RPC method call.
+
+    Uses direct method names so routed clients call chain RPC methods, not helper wrappers.
+    """
+    method = getattr(RPC, str(method_name), None)
+    if callable(method):
+        return method(*args)
+
+    execute_sync = getattr(RPC, 'execute_command_sync', None)
+    if callable(execute_sync):
+        return execute_sync(method_name, *args)
+
+    raise AttributeError(f'RPC method {method_name} is unavailable')
 
 def explorer(request):
     """Display recent blocks with network statistics and search"""
@@ -29,9 +153,9 @@ def explorer(request):
     
     try:
         # Get network statistics
-        block_count = RPC.execute_command_sync('getblockcount')
-        blockchain_info = RPC.execute_command_sync('getblockchaininfo')
-        mining_info = RPC.execute_command_sync('getmininginfo')
+        block_count = _rpc_call('getblockcount')
+        blockchain_info = _rpc_call('getblockchaininfo')
+        mining_info = _rpc_call('getmininginfo')
         
         network_stats = {
             'block_height': block_count,
@@ -57,10 +181,10 @@ def explorer(request):
                 break
             
             # Get block hash for this height
-            block_hash = RPC.execute_command_sync('getblockhash', block_height)
+            block_hash = _rpc_call('getblockhash', block_height)
             
             # Get block details
-            block = RPC.execute_command_sync('getblock', block_hash)
+            block = _rpc_call('getblock', block_hash)
             
             blocks.append({
                 'height': block_height,
@@ -144,7 +268,7 @@ def handle_search(request, query):
         if len(query) == 64 and all(c in '0123456789abcdefABCDEF' for c in query):
             # Try block hash first
             try:
-                block = RPC.execute_command_sync('getblock', query)
+                block = _rpc_call('getblock', query)
                 return redirect('block_detail', height=block.get('height'))
             except Exception:
                 # Not a valid block hash, try transaction
@@ -152,7 +276,7 @@ def handle_search(request, query):
             
             # Try transaction hash
             try:
-                tx = RPC.execute_command_sync('getrawtransaction', query, True)
+                tx = _rpc_call('getrawtransaction', query, True)
                 return redirect('transaction_detail', txid=query)
             except Exception:
                 # Not a valid transaction hash
@@ -173,10 +297,10 @@ def block_detail(request, height):
     
     try:
         # Get block hash for this height
-        block_hash = RPC.execute_command_sync('getblockhash', int(height))
+        block_hash = _rpc_call('getblockhash', int(height))
         
         # Get block details with full transaction data
-        block = RPC.execute_command_sync('getblock', block_hash, 2)
+        block = _rpc_call('getblock', block_hash, 2)
         
         block_data = {
             'height': block.get('height'),
@@ -257,7 +381,7 @@ def transaction_detail(request, txid):
     
     try:
         # Get transaction details
-        tx = RPC.execute_command_sync('getrawtransaction', txid, True)
+        tx = _rpc_call('getrawtransaction', txid, True)
         
         tx_data = {
             'txid': tx.get('txid'),
@@ -272,11 +396,13 @@ def transaction_detail(request, txid):
             'vin': tx.get('vin', []),
             'vout': tx.get('vout', []),
         }
+        tx_data['vout_display'] = _normalize_transaction_outputs(tx_data['vout'])
+        tx_data['output_summary'] = _summarize_transaction_outputs(tx_data['vout_display'])
         
         # Get block height if transaction is in a block
         if tx_data['blockhash']:
             try:
-                block = RPC.execute_command_sync('getblock', tx_data['blockhash'])
+                block = _rpc_call('getblock', tx_data['blockhash'])
                 tx_data['block_height'] = block.get('height')
             except:
                 tx_data['block_height'] = None
@@ -326,6 +452,8 @@ def transaction_detail(request, txid):
                     }
                 ],
             }
+            tx_data['vout_display'] = _normalize_transaction_outputs(tx_data['vout'])
+            tx_data['output_summary'] = _summarize_transaction_outputs(tx_data['vout_display'])
             error_message = None
         else:
             error_message = f"Error fetching transaction details: {str(e)}"

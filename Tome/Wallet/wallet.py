@@ -47,6 +47,12 @@ class Wallet:
     def get_wif(self, index=0):
         return self._derive_wallet(index=index, is_change=False).wif()
 
+    def get_change_address(self, index=0):
+        return self._derive_wallet(index=index, is_change=True).address()
+
+    def get_change_wif(self, index=0):
+        return self._derive_wallet(index=index, is_change=True).wif()
+
     def get_wif_for_address(self, address, max_scan=200):
         target = str(address or '').strip()
         if not target:

@@ -408,13 +408,21 @@
         
         <section class="page-title">
             <h1>Markets</h1>
-            <p>Browse user-created markets and trade pairs</p>
+            <p>Browse user-created markets and trade pairs on {{ current_network|title }}</p>
         </section>
         
         <div class="page-actions">
+            {% if can_manage_markets %}
             <a href="{% url 'create_market' %}" class="btn btn-primary">+ Create Market</a>
+            {% endif %}
             <a href="{% url 'listings' %}" class="btn btn-secondary">Back to Atomic Swaps</a>
         </div>
+
+        {% if not can_manage_markets %}
+        <div class="alert alert-warning">
+            Market creation and management are restricted to authorized members.
+        </div>
+        {% endif %}
         
         {% if messages %}
         <div class="messages">
@@ -445,6 +453,7 @@
                     <th>24h Low</th>
                     <th>24h Amount</th>
                     <th>24h Volume</th>
+                    {% if can_manage_markets %}<th>Actions</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -472,6 +481,16 @@
                     <td>{{ market.low_24h|floatformat:8 }}</td>
                     <td>{{ market.amount_24h|floatformat:0 }}</td>
                     <td>{{ market.volume_24h|floatformat:2 }}</td>
+                    {% if can_manage_markets %}
+                    <td>
+                        <form method="POST" action="{% url 'toggle_market_status' market.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                {% if market.is_active %}Pause{% else %}Resume{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -480,7 +499,9 @@
         <div class="empty-state">
             <h3>No markets found</h3>
             <p>Be the first to create a trading pair!</p>
+            {% if can_manage_markets %}
             <a href="{% url 'create_market' %}" class="btn btn-primary" style="margin-top: 20px;">Create Market</a>
+            {% endif %}
         </div>
         {% endif %}
     </div>

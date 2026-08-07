@@ -10,6 +10,7 @@ urlpatterns = [
     # Markets
     path('markets/', views.markets_view, name='markets'),
     path('markets/create/', views.create_market, name='create_market'),
+    path('markets/<int:market_id>/toggle/', views.toggle_market_status, name='toggle_market_status'),
     
     # Order Book DEX
     path('dex/', views.dex_orderbook, name='dex_orderbook'),

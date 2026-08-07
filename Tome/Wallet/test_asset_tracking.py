@@ -19,10 +19,10 @@ class AssetTypeClassificationTest(TestCase):
         result = classify_asset_type('PARENT/CHILD')
         self.assertEqual(result, TrackedAsset.ASSET_TYPE_SUB)
     
-    def test_unique_asset_is_classified_as_nft(self):
-        """Test Evrmore unique assets are classified as NFTs."""
+    def test_unique_asset_is_classified_as_unique(self):
+        """Test unique asset classification."""
         result = classify_asset_type('MYTOKEN#123')
-        self.assertEqual(result, TrackedAsset.ASSET_TYPE_NFT)
+        self.assertEqual(result, TrackedAsset.ASSET_TYPE_UNIQUE)
     
     def test_messaging_channel(self):
         """Test messaging channel classification"""
@@ -49,8 +49,8 @@ class AssetTypeClassificationTest(TestCase):
         result = classify_asset_type('ADMIN!')
         self.assertEqual(result, TrackedAsset.ASSET_TYPE_ADMIN)
     
-    def test_nft_asset(self):
-        """Test NFT asset classification with metadata"""
+    def test_unique_metadata_asset_is_still_unique(self):
+        """Test metadata does not create synthetic tracked asset types."""
         nft_data = {
             'amount': 1,
             'reissuable': False,
@@ -58,20 +58,20 @@ class AssetTypeClassificationTest(TestCase):
             'ipfs_hash': 'QmXxxx...'
         }
         result = classify_asset_type('MYNFT', nft_data)
-        self.assertEqual(result, TrackedAsset.ASSET_TYPE_NFT)
+        self.assertEqual(result, TrackedAsset.ASSET_TYPE_MAIN)
     
-    def test_vault_asset(self):
-        """Test vault asset classification with toll enabled"""
+    def test_toll_metadata_asset_is_not_a_separate_type(self):
+        """Test toll metadata does not create a separate tracked asset type."""
         vault_data = {
             'has_toll': True,
             'toll_percentage': 5.0,
             'toll_address': 'EVRxxxxxxxxxx'
         }
         result = classify_asset_type('MYVAULT', vault_data)
-        self.assertEqual(result, TrackedAsset.ASSET_TYPE_VAULT)
+        self.assertEqual(result, TrackedAsset.ASSET_TYPE_MAIN)
     
     def test_regular_asset_with_metadata(self):
-        """Test regular asset doesn't become NFT/vault without right metadata"""
+        """Test regular asset classification with metadata."""
         regular_data = {
             'amount': 1000,
             'reissuable': True,

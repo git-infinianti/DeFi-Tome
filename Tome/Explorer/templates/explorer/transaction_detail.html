@@ -399,29 +399,55 @@
         <!-- Outputs -->
         <div class="card">
             <h2 class="card-title">Outputs ({{ transaction.vout|length }})</h2>
-            {% if transaction.vout %}
+            {% if transaction.output_summary %}
+            <div style="margin-bottom: 1rem; display: grid; gap: 0.5rem; color: var(--text-secondary);">
+                <div><strong>Total EVR Out:</strong> {{ transaction.output_summary.evr_total_display }} EVR</div>
+                <div><strong>Asset Outputs:</strong> {{ transaction.output_summary.asset_output_count }}{% if transaction.output_summary.asset_name_count %} across {{ transaction.output_summary.asset_name_count }} asset{{ transaction.output_summary.asset_name_count|pluralize }}{% endif %}</div>
+            </div>
+            {% endif %}
+            {% if transaction.vout_display %}
             <div class="io-section">
-                {% for vout in transaction.vout %}
+                {% for vout in transaction.vout_display %}
                 <div class="io-item">
                     <div class="io-item-header">
-                        <span class="io-index">Output #{{ vout.n }}</span>
-                        <span class="io-amount">{{ vout.value }} EVR</span>
+                        <span class="io-index">Output #{{ vout.index }}</span>
+                        <span class="io-amount">{{ vout.evr_value_display|default:"0.00000000" }} EVR</span>
                     </div>
-                    {% if vout.scriptPubKey %}
-                        {% if vout.scriptPubKey.addresses %}
-                        <div class="io-address">
-                            Address: {{ vout.scriptPubKey.addresses.0 }}
-                        </div>
-                        {% endif %}
-                        <div style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">
-                            Type: {{ vout.scriptPubKey.type|default:"unknown" }}
-                        </div>
-                        {% if vout.scriptPubKey.hex %}
-                        <div class="io-scriptpubkey">
-                            <div style="color: var(--text-muted); margin-bottom: 0.25rem;">Script Pub Key:</div>
-                            {{ vout.scriptPubKey.hex }}
-                        </div>
-                        {% endif %}
+                    {% if vout.primary_address %}
+                    <div class="io-address">
+                        Address: {{ vout.primary_address }}
+                    </div>
+                    {% else %}
+                    <div class="io-address">
+                        Address: N/A
+                    </div>
+                    {% endif %}
+
+                    {% if vout.addresses|length > 1 %}
+                    <div class="io-address">Additional addresses: {{ vout.addresses|slice:"1:"|join:", " }}</div>
+                    {% endif %}
+
+                    <div style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">
+                        Type: {{ vout.output_type }}
+                    </div>
+
+                    {% if vout.asset_name %}
+                    <div style="margin-top: 0.5rem; color: var(--accent-light); font-size: 0.9rem;">
+                        Asset: {{ vout.asset_name }}{% if vout.asset_amount_display %} ({{ vout.asset_amount_display }}){% endif %}
+                    </div>
+                    {% if vout.asset_message %}
+                    <div class="io-scriptpubkey">
+                        <div style="color: var(--text-muted); margin-bottom: 0.25rem;">Asset Message:</div>
+                        {{ vout.asset_message }}
+                    </div>
+                    {% endif %}
+                    {% endif %}
+
+                    {% if vout.script_hex %}
+                    <div class="io-scriptpubkey">
+                        <div style="color: var(--text-muted); margin-bottom: 0.25rem;">Script Pub Key:</div>
+                        {{ vout.script_hex }}
+                    </div>
                     {% endif %}
                 </div>
                 {% endfor %}
